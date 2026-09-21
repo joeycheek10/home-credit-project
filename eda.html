@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.18">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Joey Cheek">
+
+<title>Home Credit Default Risk EDA</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="eda_files/libs/clipboard/clipboard.min.js"></script>
+<script src="eda_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="eda_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="eda_files/libs/quarto-html/popper.min.js"></script>
+<script src="eda_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="eda_files/libs/quarto-html/anchor.min.js"></script>
+<link href="eda_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="eda_files/libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="eda_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="eda_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="eda_files/libs/bootstrap/bootstrap-917079515d91bccb85b543faf8aa8bb6.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article toc-left">
+<div id="quarto-sidebar-toc-left" class="sidebar toc-left">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Contents</h2>
+   
+  <ul>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link active" data-scroll-target="#introduction">Introduction</a>
+  <ul class="collapse">
+  <li><a href="#what-business-problem-are-we-trying-to-solve" id="toc-what-business-problem-are-we-trying-to-solve" class="nav-link" data-scroll-target="#what-business-problem-are-we-trying-to-solve">What business problem are we trying to solve?</a></li>
+  <li><a href="#what-questions-will-this-eda-answer" id="toc-what-questions-will-this-eda-answer" class="nav-link" data-scroll-target="#what-questions-will-this-eda-answer">What questions will this EDA answer?</a></li>
+  </ul></li>
+  <li><a href="#description-of-the-data" id="toc-description-of-the-data" class="nav-link" data-scroll-target="#description-of-the-data">Description of the Data</a>
+  <ul class="collapse">
+  <li><a href="#what-do-the-training-and-test-datasets-contain" id="toc-what-do-the-training-and-test-datasets-contain" class="nav-link" data-scroll-target="#what-do-the-training-and-test-datasets-contain">What do the training and test datasets contain?</a></li>
+  <li><a href="#what-types-of-variables-are-available" id="toc-what-types-of-variables-are-available" class="nav-link" data-scroll-target="#what-types-of-variables-are-available">What types of variables are available?</a></li>
+  <li><a href="#do-the-application-columns-match-the-data-dictionary" id="toc-do-the-application-columns-match-the-data-dictionary" class="nav-link" data-scroll-target="#do-the-application-columns-match-the-data-dictionary">Do the application columns match the data dictionary?</a></li>
+  </ul></li>
+  <li><a href="#data-integrity" id="toc-data-integrity" class="nav-link" data-scroll-target="#data-integrity">Data Integrity</a>
+  <ul class="collapse">
+  <li><a href="#how-much-data-is-missing" id="toc-how-much-data-is-missing" class="nav-link" data-scroll-target="#how-much-data-is-missing">How much data is missing?</a></li>
+  <li><a href="#does-missingness-relate-to-default-risk" id="toc-does-missingness-relate-to-default-risk" class="nav-link" data-scroll-target="#does-missingness-relate-to-default-risk">Does missingness relate to default risk?</a></li>
+  <li><a href="#are-there-unusual-or-impossible-values" id="toc-are-there-unusual-or-impossible-values" class="nav-link" data-scroll-target="#are-there-unusual-or-impossible-values">Are there unusual or impossible values?</a></li>
+  <li><a href="#is-the-target-variable-imbalanced" id="toc-is-the-target-variable-imbalanced" class="nav-link" data-scroll-target="#is-the-target-variable-imbalanced">Is the target variable imbalanced?</a></li>
+  <li><a href="#are-there-duplicate-observations" id="toc-are-there-duplicate-observations" class="nav-link" data-scroll-target="#are-there-duplicate-observations">Are there duplicate observations?</a></li>
+  </ul></li>
+  <li><a href="#exploratory-analysis" id="toc-exploratory-analysis" class="nav-link" data-scroll-target="#exploratory-analysis">Exploratory Analysis</a>
+  <ul class="collapse">
+  <li><a href="#how-does-default-risk-vary-by-income" id="toc-how-does-default-risk-vary-by-income" class="nav-link" data-scroll-target="#how-does-default-risk-vary-by-income">How does default risk vary by income?</a></li>
+  <li><a href="#how-does-default-risk-vary-by-age" id="toc-how-does-default-risk-vary-by-age" class="nav-link" data-scroll-target="#how-does-default-risk-vary-by-age">How does default risk vary by age?</a></li>
+  <li><a href="#how-does-default-risk-vary-by-credit-amount" id="toc-how-does-default-risk-vary-by-credit-amount" class="nav-link" data-scroll-target="#how-does-default-risk-vary-by-credit-amount">How does default risk vary by credit amount?</a></li>
+  <li><a href="#how-does-default-risk-vary-by-employment-history" id="toc-how-does-default-risk-vary-by-employment-history" class="nav-link" data-scroll-target="#how-does-default-risk-vary-by-employment-history">How does default risk vary by employment history?</a></li>
+  <li><a href="#which-categorical-variables-show-the-largest-differences-in-default-risk" id="toc-which-categorical-variables-show-the-largest-differences-in-default-risk" class="nav-link" data-scroll-target="#which-categorical-variables-show-the-largest-differences-in-default-risk">Which categorical variables show the largest differences in default risk?</a></li>
+  <li><a href="#which-numeric-variables-appear-most-strongly-related-to-default-risk" id="toc-which-numeric-variables-appear-most-strongly-related-to-default-risk" class="nav-link" data-scroll-target="#which-numeric-variables-appear-most-strongly-related-to-default-risk">Which numeric variables appear most strongly related to default risk?</a></li>
+  </ul></li>
+  <li><a href="#conclusion" id="toc-conclusion" class="nav-link" data-scroll-target="#conclusion">Conclusion</a>
+  <ul class="collapse">
+  <li><a href="#what-data-issues-need-to-be-addressed-before-modeling" id="toc-what-data-issues-need-to-be-addressed-before-modeling" class="nav-link" data-scroll-target="#what-data-issues-need-to-be-addressed-before-modeling">What data issues need to be addressed before modeling?</a></li>
+  <li><a href="#which-variables-appear-most-useful" id="toc-which-variables-appear-most-useful" class="nav-link" data-scroll-target="#which-variables-appear-most-useful">Which variables appear most useful?</a></li>
+  <li><a href="#how-did-the-eda-change-or-confirm-the-business-problem" id="toc-how-did-the-eda-change-or-confirm-the-business-problem" class="nav-link" data-scroll-target="#how-did-the-eda-change-or-confirm-the-business-problem">How did the EDA change or confirm the business problem?</a></li>
+  </ul></li>
+  <li><a href="#ai-use" id="toc-ai-use" class="nav-link" data-scroll-target="#ai-use">AI Use</a></li>
+  </ul>
+</nav>
+</div>
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Home Credit Default Risk EDA</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Joey Cheek </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="introduction" class="level1">
+<h1>Introduction</h1>
+<section id="what-business-problem-are-we-trying-to-solve" class="level2">
+<h2 class="anchored" data-anchor-id="what-business-problem-are-we-trying-to-solve">What business problem are we trying to solve?</h2>
+<p>Home Credit provides loans to consumers who may have limited traditional credit histories, making it more difficult to assess whether an applicant will be able to repay a loan. The business problem is to improve the identification of applicants who are more likely to experience repayment difficulty while avoiding unnecessary rejection of applicants who are capable of repaying. For this EDA, <code>TARGET</code> is the outcome of interest, where a value of 1 represents an applicant who experienced repayment difficulty and 0 represents an applicant who did not. The purpose of the analysis is to identify data-quality issues and applicant characteristics that may help explain differences in repayment risk before predictive modeling begins.</p>
+</section>
+<section id="what-questions-will-this-eda-answer" class="level2">
+<h2 class="anchored" data-anchor-id="what-questions-will-this-eda-answer">What questions will this EDA answer?</h2>
+<p>The exploratory analysis will address the following questions:</p>
+<ul>
+<li>What do the training and test datasets contain, and what types of variables are available?</li>
+<li>How much data is missing, and which variables have the greatest missingness?</li>
+<li>Are there unusual, special, or potentially invalid values that need to be addressed before modeling?</li>
+<li>Is repayment difficulty uncommon enough to create a class-imbalance problem?</li>
+<li>Are there duplicate applications or application IDs?</li>
+<li>How does default risk vary across applicant income levels?</li>
+<li>How does default risk vary across age groups?</li>
+<li>How does default risk vary across credit amounts?</li>
+<li>How does employment history relate to default risk?</li>
+<li>Which categorical applicant characteristics show the largest differences in default rates?</li>
+<li>Which numeric variables appear most strongly associated with repayment difficulty?</li>
+</ul>
+</section>
+</section>
+<section id="description-of-the-data" class="level1">
+<h1>Description of the Data</h1>
+<section id="what-do-the-training-and-test-datasets-contain" class="level2">
+<h2 class="anchored" data-anchor-id="what-do-the-training-and-test-datasets-contain">What do the training and test datasets contain?</h2>
+<div id="6c9de72b" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Load the Home Credit application datasets</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>train <span class="op">=</span> pd.read_csv(<span class="st">"application_train.csv"</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>test <span class="op">=</span> pd.read_csv(<span class="st">"application_test.csv"</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Report basic dataset dimensions</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Training data shape:"</span>, train.shape)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Test data shape:"</span>, test.shape)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Check whether the application ID is unique in each dataset</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Training SK_ID_CURR unique:"</span>, train[<span class="st">"SK_ID_CURR"</span>].is_unique)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Test SK_ID_CURR unique:"</span>, test[<span class="st">"SK_ID_CURR"</span>].is_unique)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Check whether the target variable is available</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"TARGET in training data:"</span>, <span class="st">"TARGET"</span> <span class="kw">in</span> train.columns)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"TARGET in test data:"</span>, <span class="st">"TARGET"</span> <span class="kw">in</span> test.columns)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Training data shape: (307511, 122)
+Test data shape: (48744, 121)
+Training SK_ID_CURR unique: True
+Test SK_ID_CURR unique: True
+TARGET in training data: True
+TARGET in test data: False</code></pre>
+</div>
+</div>
+<p>The training dataset contains 307,511 applications and 122 variables, while the test dataset contains 48,744 applications and 121 variables. SK_ID_CURR is unique in both datasets, indicating that each row represents one unique current loan application. The training dataset contains the TARGET outcome variable, while the test dataset does not. This means the training data can be used to examine relationships with repayment difficulty, while the test data is intended for later prediction rather than evaluation of observed outcomes.</p>
+</section>
+<section id="what-types-of-variables-are-available" class="level2">
+<h2 class="anchored" data-anchor-id="what-types-of-variables-are-available">What types of variables are available?</h2>
+<div id="0ec087a0" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Count variables by data type</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>dtype_counts <span class="op">=</span> train.dtypes.value_counts()</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Variable types in training data:"</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(dtype_counts)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Identify categorical and numeric columns</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>categorical_cols <span class="op">=</span> train.select_dtypes(include<span class="op">=</span>[<span class="st">"object"</span>]).columns.tolist()</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>numeric_cols <span class="op">=</span> train.select_dtypes(exclude<span class="op">=</span>[<span class="st">"object"</span>]).columns.tolist()</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Number of categorical variables:"</span>, <span class="bu">len</span>(categorical_cols))</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Number of numeric variables:"</span>, <span class="bu">len</span>(numeric_cols))</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Show examples of each type</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Example categorical variables:"</span>)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(categorical_cols[:<span class="dv">10</span>])</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Example numeric variables:"</span>)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(numeric_cols[:<span class="dv">10</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Variable types in training data:
+float64    65
+int64      41
+object     16
+Name: count, dtype: int64
+
+Number of categorical variables: 16
+Number of numeric variables: 106
+
+Example categorical variables:
+['NAME_CONTRACT_TYPE', 'CODE_GENDER', 'FLAG_OWN_CAR', 'FLAG_OWN_REALTY', 'NAME_TYPE_SUITE', 'NAME_INCOME_TYPE', 'NAME_EDUCATION_TYPE', 'NAME_FAMILY_STATUS', 'NAME_HOUSING_TYPE', 'OCCUPATION_TYPE']
+
+Example numeric variables:
+['SK_ID_CURR', 'TARGET', 'CNT_CHILDREN', 'AMT_INCOME_TOTAL', 'AMT_CREDIT', 'AMT_ANNUITY', 'AMT_GOODS_PRICE', 'REGION_POPULATION_RELATIVE', 'DAYS_BIRTH', 'DAYS_EMPLOYED']</code></pre>
+</div>
+</div>
+<p>The training data contains a mix of numeric and categorical variables, with 106 numeric variables and 16 categorical variables. The available features cover several business-relevant areas, including applicant demographics, income, employment, housing, loan amount, repayment amount, and household characteristics. This mix of variable types should allow the analysis to examine both financial capacity and applicant characteristics that may be associated with repayment difficulty. The categorical variables will require different treatment from the numeric variables during later modeling, so identifying these groups early is important for data preparation.</p>
+</section>
+<section id="do-the-application-columns-match-the-data-dictionary" class="level2">
+<h2 class="anchored" data-anchor-id="do-the-application-columns-match-the-data-dictionary">Do the application columns match the data dictionary?</h2>
+<div id="f29254a7" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load the Home Credit data dictionary</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>dictionary <span class="op">=</span> pd.read_csv(</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"HomeCredit_columns_description.csv"</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    encoding<span class="op">=</span><span class="st">"latin1"</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Check the table names used in the dictionary</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Relevant table names in the dictionary:"</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    dictionary.loc[</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        dictionary[<span class="st">"Table"</span>].astype(<span class="bu">str</span>).<span class="bu">str</span>.contains(<span class="st">"application"</span>, case<span class="op">=</span><span class="va">False</span>, na<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Table"</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    ].unique()</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Keep only the main application train/test table</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>application_dictionary <span class="op">=</span> dictionary[</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    dictionary[<span class="st">"Table"</span>].astype(<span class="bu">str</span>).<span class="bu">str</span>.strip()</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">==</span> <span class="st">"application_{train|test}.csv"</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>].copy()</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Get documented application column names</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>documented_columns <span class="op">=</span> <span class="bu">set</span>(</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    application_dictionary[<span class="st">"Row"</span>].dropna().astype(<span class="bu">str</span>).<span class="bu">str</span>.strip()</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Get actual training-data columns</span></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>actual_columns <span class="op">=</span> <span class="bu">set</span>(train.columns)</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare the two sets of columns</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>missing_from_dictionary <span class="op">=</span> <span class="bu">sorted</span>(actual_columns <span class="op">-</span> documented_columns)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>documented_but_not_in_train <span class="op">=</span> <span class="bu">sorted</span>(documented_columns <span class="op">-</span> actual_columns)</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Training columns:"</span>, <span class="bu">len</span>(actual_columns))</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Documented application columns:"</span>, <span class="bu">len</span>(documented_columns))</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Columns in training data but not found in dictionary:"</span>)</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(missing_from_dictionary)</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Columns documented but not found in training data:"</span>)</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(documented_but_not_in_train)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Relevant table names in the dictionary:
+['application_{train|test}.csv' 'previous_application.csv']
+
+Training columns: 122
+Documented application columns: 122
+
+Columns in training data but not found in dictionary:
+[]
+
+Columns documented but not found in training data:
+[]</code></pre>
+</div>
+</div>
+<p>The application training dataset matches the Home Credit data dictionary. All 122 columns in the training data are documented, and all 122 documented application columns are present in the training dataset. No column-level discrepancies were identified, so the data dictionary appears consistent with the application data used for this EDA.</p>
+</section>
+</section>
+<section id="data-integrity" class="level1">
+<h1>Data Integrity</h1>
+<section id="how-much-data-is-missing" class="level2">
+<h2 class="anchored" data-anchor-id="how-much-data-is-missing">How much data is missing?</h2>
+<div id="51b67184" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate missing-value counts and percentages</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>missing_counts <span class="op">=</span> train.isna().<span class="bu">sum</span>()</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>missing_percent <span class="op">=</span> (missing_counts <span class="op">/</span> <span class="bu">len</span>(train)) <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Combine into a summary table</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>missing_summary <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Missing_Count"</span>: missing_counts,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Missing_Percent"</span>: missing_percent</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Keep only variables with missing values</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>missing_summary <span class="op">=</span> missing_summary[missing_summary[<span class="st">"Missing_Count"</span>] <span class="op">&gt;</span> <span class="dv">0</span>]</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Sort from highest to lowest missing percentage</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>missing_summary <span class="op">=</span> missing_summary.sort_values(</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    by<span class="op">=</span><span class="st">"Missing_Percent"</span>,</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    ascending<span class="op">=</span><span class="va">False</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Display the 15 variables with the most missing data</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Number of variables with missing values:"</span>, <span class="bu">len</span>(missing_summary))</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Top 15 variables by missing percentage:"</span>)</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(missing_summary.head(<span class="dv">15</span>).<span class="bu">round</span>(<span class="dv">2</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Number of variables with missing values: 67
+
+Top 15 variables by missing percentage:
+                          Missing_Count  Missing_Percent
+COMMONAREA_MEDI                  214865            69.87
+COMMONAREA_AVG                   214865            69.87
+COMMONAREA_MODE                  214865            69.87
+NONLIVINGAPARTMENTS_MEDI         213514            69.43
+NONLIVINGAPARTMENTS_MODE         213514            69.43
+NONLIVINGAPARTMENTS_AVG          213514            69.43
+FONDKAPREMONT_MODE               210295            68.39
+LIVINGAPARTMENTS_MODE            210199            68.35
+LIVINGAPARTMENTS_MEDI            210199            68.35
+LIVINGAPARTMENTS_AVG             210199            68.35
+FLOORSMIN_MODE                   208642            67.85
+FLOORSMIN_MEDI                   208642            67.85
+FLOORSMIN_AVG                    208642            67.85
+YEARS_BUILD_MODE                 204488            66.50
+YEARS_BUILD_MEDI                 204488            66.50</code></pre>
+</div>
+</div>
+<p>Missing data is a significant issue in the training dataset, with 67 variables containing at least some missing values. Several property-related variables, such as common-area measurements, non-living apartment measurements, and building-year information, are missing for more than two-thirds of applicants. This level of missingness suggests that some variables may provide limited value unless the missing values themselves carry meaningful information. For later modeling, variables with extremely high missingness should be reviewed carefully and may need to be excluded, transformed, or handled with explicit missing-value indicators rather than filled in automatically. I would not remove rows simply because these fields are missing, because that could eliminate a large share of the applicant population.</p>
+</section>
+<section id="does-missingness-relate-to-default-risk" class="level2">
+<h2 class="anchored" data-anchor-id="does-missingness-relate-to-default-risk">Does missingness relate to default risk?</h2>
+<div id="2235e1ae" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Identify variables with the most missing values</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>top_missing_vars <span class="op">=</span> missing_summary.head(<span class="dv">5</span>).index.tolist()</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare default rates for missing vs. non-missing values</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>missing_target_results <span class="op">=</span> []</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> col <span class="kw">in</span> top_missing_vars:</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    missing_rate <span class="op">=</span> train.loc[train[col].isna(), <span class="st">"TARGET"</span>].mean() <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    present_rate <span class="op">=</span> train.loc[train[col].notna(), <span class="st">"TARGET"</span>].mean() <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    missing_target_results.append({</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Variable"</span>: col,</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Default_Rate_Missing"</span>: missing_rate,</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Default_Rate_Present"</span>: present_rate</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>missing_target_summary <span class="op">=</span> pd.DataFrame(missing_target_results)</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Default rates for missing vs. non-missing values:"</span>)</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(missing_target_summary.<span class="bu">round</span>(<span class="dv">2</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Default rates for missing vs. non-missing values:
+                   Variable  Default_Rate_Missing  Default_Rate_Present
+0           COMMONAREA_MEDI                  8.57                  6.91
+1            COMMONAREA_AVG                  8.57                  6.91
+2           COMMONAREA_MODE                  8.57                  6.91
+3  NONLIVINGAPARTMENTS_MEDI                  8.58                  6.91
+4  NONLIVINGAPARTMENTS_MODE                  8.58                  6.91</code></pre>
+</div>
+</div>
+<p>Missingness appears to be related to repayment risk for several of the most incomplete variables. For the variables examined, applicants with missing values have default rates around 8.6%, compared with about 6.9% for applicants whose values are present. This suggests that missingness may not be completely random and may itself contain useful information about applicant risk. For later modeling, I would consider creating missing-value indicators for highly incomplete variables rather than simply imputing the missing values and discarding the fact that they were originally absent.</p>
+</section>
+<section id="are-there-unusual-or-impossible-values" class="level2">
+<h2 class="anchored" data-anchor-id="are-there-unusual-or-impossible-values">Are there unusual or impossible values?</h2>
+<div id="5fecf13d" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Review selected numeric variables for suspicious or impossible values</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>variables_to_check <span class="op">=</span> [</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"AMT_INCOME_TOTAL"</span>,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"AMT_CREDIT"</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"AMT_ANNUITY"</span>,</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"DAYS_BIRTH"</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"DAYS_EMPLOYED"</span>,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"CNT_CHILDREN"</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Display minimum, median, and maximum values</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>summary_checks <span class="op">=</span> train[variables_to_check].agg([<span class="st">"min"</span>, <span class="st">"median"</span>, <span class="st">"max"</span>]).T</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Selected numeric variable checks:"</span>)</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(summary_checks)</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Check the known special value in DAYS_EMPLOYED</span></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>special_employment_count <span class="op">=</span> (train[<span class="st">"DAYS_EMPLOYED"</span>] <span class="op">==</span> <span class="dv">365243</span>).<span class="bu">sum</span>()</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>special_employment_percent <span class="op">=</span> special_employment_count <span class="op">/</span> <span class="bu">len</span>(train) <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Applicants with DAYS_EMPLOYED = 365243:"</span>)</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(special_employment_count)</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Percent of applicants:"</span>)</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">round</span>(special_employment_percent, <span class="dv">2</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Selected numeric variable checks:
+                      min    median          max
+AMT_INCOME_TOTAL  25650.0  147150.0  117000000.0
+AMT_CREDIT        45000.0  513531.0    4050000.0
+AMT_ANNUITY        1615.5   24903.0     258025.5
+DAYS_BIRTH       -25229.0  -15750.0      -7489.0
+DAYS_EMPLOYED    -17912.0   -1213.0     365243.0
+CNT_CHILDREN          0.0       0.0         19.0
+
+Applicants with DAYS_EMPLOYED = 365243:
+55374
+Percent of applicants:
+18.01</code></pre>
+</div>
+</div>
+<p>The numeric checks identified an important data-quality issue in DAYS_EMPLOYED. While most employment values are negative, representing days before the application date, 55,374 applicants have a value of 365,243, representing 18.01% of the training data. This value is not a realistic employment duration and should be treated as a special or missing-value code rather than as an actual number of days employed. Several variables also contain extreme values, including very high reported income and a maximum of 19 children. These values should be reviewed further before modeling to determine whether they are valid observations or influential outliers. For later analysis, I would recode the 365243 employment value as missing or as a separate indicator rather than using it as a normal numeric value.</p>
+</section>
+<section id="is-the-target-variable-imbalanced" class="level2">
+<h2 class="anchored" data-anchor-id="is-the-target-variable-imbalanced">Is the target variable imbalanced?</h2>
+<div id="14362091" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Count repayment outcomes in the training data</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>target_counts <span class="op">=</span> train[<span class="st">"TARGET"</span>].value_counts().sort_index()</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate percentages</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>target_percent <span class="op">=</span> train[<span class="st">"TARGET"</span>].value_counts(</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    normalize<span class="op">=</span><span class="va">True</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>).sort_index() <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Combine counts and percentages</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>target_summary <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Count"</span>: target_counts,</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Percent"</span>: target_percent</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"TARGET distribution:"</span>)</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(target_summary.<span class="bu">round</span>(<span class="dv">2</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>TARGET distribution:
+         Count  Percent
+TARGET                 
+0       282686    91.93
+1        24825     8.07</code></pre>
+</div>
+</div>
+<p>The target variable is highly imbalanced. About 91.93% of applicants are in the non-default group, while only 8.07% are in the repayment-difficulty group. This means a model could achieve high overall accuracy by mostly predicting the majority class, even if it performs poorly at identifying applicants who are actually at risk. For later modeling, evaluation should therefore emphasize measures that reflect performance on the minority class, such as sensitivity/recall, precision, ROC AUC, or other business-relevant error measures rather than relying on accuracy alone.</p>
+</section>
+<section id="are-there-duplicate-observations" class="level2">
+<h2 class="anchored" data-anchor-id="are-there-duplicate-observations">Are there duplicate observations?</h2>
+<div id="b79a7293" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check for duplicate rows</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>duplicate_rows <span class="op">=</span> train.duplicated().<span class="bu">sum</span>()</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Check for duplicate application IDs</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>duplicate_ids <span class="op">=</span> train[<span class="st">"SK_ID_CURR"</span>].duplicated().<span class="bu">sum</span>()</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Duplicate rows:"</span>, duplicate_rows)</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Duplicate SK_ID_CURR values:"</span>, duplicate_ids)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Duplicate rows: 0
+Duplicate SK_ID_CURR values: 0</code></pre>
+</div>
+</div>
+<p>No duplicate rows or duplicate SK_ID_CURR values were found in the training data. This confirms that each application appears only once and supports using SK_ID_CURR as the unique application-level identifier. No deduplication step is needed before further analysis or modeling.</p>
+</section>
+</section>
+<section id="exploratory-analysis" class="level1">
+<h1>Exploratory Analysis</h1>
+<section id="how-does-default-risk-vary-by-income" class="level2">
+<h2 class="anchored" data-anchor-id="how-does-default-risk-vary-by-income">How does default risk vary by income?</h2>
+<div id="6df3642c" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Create income quintiles with roughly equal numbers of applicants</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>income_data <span class="op">=</span> train[[<span class="st">"AMT_INCOME_TOTAL"</span>, <span class="st">"TARGET"</span>]].dropna().copy()</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>income_data[<span class="st">"Income_Group"</span>] <span class="op">=</span> pd.qcut(</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    income_data[<span class="st">"AMT_INCOME_TOTAL"</span>],</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    q<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    duplicates<span class="op">=</span><span class="st">"drop"</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate default rate by income group</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>income_summary <span class="op">=</span> (</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    income_data</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"Income_Group"</span>, observed<span class="op">=</span><span class="va">False</span>)[<span class="st">"TARGET"</span>]</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>    .agg([<span class="st">"count"</span>, <span class="st">"mean"</span>])</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>income_summary[<span class="st">"Default_Rate_Percent"</span>] <span class="op">=</span> income_summary[<span class="st">"mean"</span>] <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Default rate by income group:"</span>)</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>    income_summary[</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>        [<span class="st">"Income_Group"</span>, <span class="st">"count"</span>, <span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>    ].<span class="bu">round</span>(<span class="dv">2</span>)</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot default rate by income group</span></span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>plt.bar(</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>    income_summary[<span class="st">"Income_Group"</span>].astype(<span class="bu">str</span>),</span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>    income_summary[<span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a>plt.title(<span class="st">"Default Rate by Applicant Income Group"</span>)</span>
+<span id="cb17-38"><a href="#cb17-38" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">"Applicant Income Group"</span>)</span>
+<span id="cb17-39"><a href="#cb17-39" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">"Default Rate (%)"</span>)</span>
+<span id="cb17-40"><a href="#cb17-40" aria-hidden="true" tabindex="-1"></a>plt.xticks(rotation<span class="op">=</span><span class="dv">30</span>, ha<span class="op">=</span><span class="st">"right"</span>)</span>
+<span id="cb17-41"><a href="#cb17-41" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb17-42"><a href="#cb17-42" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Default rate by income group:
+              Income_Group  count  Default_Rate_Percent
+0     (25649.999, 99000.0]  63671                  8.21
+1      (99000.0, 135000.0]  85756                  8.59
+2     (135000.0, 162000.0]  35453                  8.68
+3     (162000.0, 225000.0]  75513                  8.06
+4  (225000.0, 117000000.0]  47118                  6.52</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="eda_files/figure-html/cell-10-output-2.png" width="943" height="470" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Default risk does not decline consistently as income increases. The three lower-to-middle income groups have fairly similar default rates, ranging from about 8.2% to 8.7%, while the highest-income group has a noticeably lower default rate of 6.52%. This suggests that income may provide some useful information about repayment risk, but it is unlikely to be a strong predictor by itself. A possible explanation is that repayment ability depends on income relative to other obligations, such as loan size and required payments, rather than income alone. I would keep income as a candidate predictor but also examine ratios such as credit amount or annuity relative to income.</p>
+</section>
+<section id="how-does-default-risk-vary-by-age" class="level2">
+<h2 class="anchored" data-anchor-id="how-does-default-risk-vary-by-age">How does default risk vary by age?</h2>
+<div id="1caa5d9e" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert DAYS_BIRTH into age in years</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>age_data <span class="op">=</span> train[[<span class="st">"DAYS_BIRTH"</span>, <span class="st">"TARGET"</span>]].dropna().copy()</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>age_data[<span class="st">"Age"</span>] <span class="op">=</span> (<span class="op">-</span>age_data[<span class="st">"DAYS_BIRTH"</span>] <span class="op">/</span> <span class="fl">365.25</span>)</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Group applicants into age ranges</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>age_data[<span class="st">"Age_Group"</span>] <span class="op">=</span> pd.cut(</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    age_data[<span class="st">"Age"</span>],</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    bins<span class="op">=</span>[<span class="dv">20</span>, <span class="dv">30</span>, <span class="dv">40</span>, <span class="dv">50</span>, <span class="dv">60</span>, <span class="dv">70</span>],</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    right<span class="op">=</span><span class="va">False</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate default rate by age group</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>age_summary <span class="op">=</span> (</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>    age_data</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"Age_Group"</span>, observed<span class="op">=</span><span class="va">False</span>)[<span class="st">"TARGET"</span>]</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>    .agg([<span class="st">"count"</span>, <span class="st">"mean"</span>])</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>age_summary[<span class="st">"Default_Rate_Percent"</span>] <span class="op">=</span> age_summary[<span class="st">"mean"</span>] <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Default rate by age group:"</span>)</span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>    age_summary[</span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>        [<span class="st">"Age_Group"</span>, <span class="st">"count"</span>, <span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a>    ].<span class="bu">round</span>(<span class="dv">2</span>)</span>
+<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot default rate by age group</span></span>
+<span id="cb19-30"><a href="#cb19-30" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">5</span>))</span>
+<span id="cb19-31"><a href="#cb19-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-32"><a href="#cb19-32" aria-hidden="true" tabindex="-1"></a>plt.bar(</span>
+<span id="cb19-33"><a href="#cb19-33" aria-hidden="true" tabindex="-1"></a>    age_summary[<span class="st">"Age_Group"</span>].astype(<span class="bu">str</span>),</span>
+<span id="cb19-34"><a href="#cb19-34" aria-hidden="true" tabindex="-1"></a>    age_summary[<span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb19-35"><a href="#cb19-35" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-36"><a href="#cb19-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-37"><a href="#cb19-37" aria-hidden="true" tabindex="-1"></a>plt.title(<span class="st">"Default Rate by Applicant Age Group"</span>)</span>
+<span id="cb19-38"><a href="#cb19-38" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">"Applicant Age Group"</span>)</span>
+<span id="cb19-39"><a href="#cb19-39" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">"Default Rate (%)"</span>)</span>
+<span id="cb19-40"><a href="#cb19-40" aria-hidden="true" tabindex="-1"></a>plt.xticks(rotation<span class="op">=</span><span class="dv">30</span>, ha<span class="op">=</span><span class="st">"right"</span>)</span>
+<span id="cb19-41"><a href="#cb19-41" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb19-42"><a href="#cb19-42" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Default rate by age group:
+  Age_Group  count  Default_Rate_Percent
+0  [20, 30)  45186                 11.44
+1  [30, 40)  82331                  9.59
+2  [40, 50)  76599                  7.64
+3  [50, 60)  68094                  6.12
+4  [60, 70)  35301                  4.92</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="eda_files/figure-html/cell-11-output-2.png" width="854" height="470" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Default risk decreases consistently as applicant age increases. Applicants in their 20s have the highest default rate at 11.44%, while applicants in their 60s have the lowest rate at 4.92%. This pattern suggests that age is meaningfully associated with repayment risk in this dataset. One possible explanation is that older applicants may have more stable income, employment, or financial histories than younger applicants. I would keep age as an important candidate predictor, while avoiding the assumption that age itself causes repayment difficulty.</p>
+</section>
+<section id="how-does-default-risk-vary-by-credit-amount" class="level2">
+<h2 class="anchored" data-anchor-id="how-does-default-risk-vary-by-credit-amount">How does default risk vary by credit amount?</h2>
+<div id="8f03b376" class="cell" data-execution_count="11">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create credit amount quintiles</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>credit_data <span class="op">=</span> train[[<span class="st">"AMT_CREDIT"</span>, <span class="st">"TARGET"</span>]].dropna().copy()</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>credit_data[<span class="st">"Credit_Group"</span>] <span class="op">=</span> pd.qcut(</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    credit_data[<span class="st">"AMT_CREDIT"</span>],</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    q<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    duplicates<span class="op">=</span><span class="st">"drop"</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate default rate by credit amount group</span></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>credit_summary <span class="op">=</span> (</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>    credit_data</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"Credit_Group"</span>, observed<span class="op">=</span><span class="va">False</span>)[<span class="st">"TARGET"</span>]</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>    .agg([<span class="st">"count"</span>, <span class="st">"mean"</span>])</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>credit_summary[<span class="st">"Default_Rate_Percent"</span>] <span class="op">=</span> credit_summary[<span class="st">"mean"</span>] <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Default rate by credit amount group:"</span>)</span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>    credit_summary[</span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>        [<span class="st">"Credit_Group"</span>, <span class="st">"count"</span>, <span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>    ].<span class="bu">round</span>(<span class="dv">2</span>)</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot default rate by credit amount group</span></span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>plt.bar(</span>
+<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>    credit_summary[<span class="st">"Credit_Group"</span>].astype(<span class="bu">str</span>),</span>
+<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>    credit_summary[<span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a>plt.title(<span class="st">"Default Rate by Credit Amount Group"</span>)</span>
+<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">"Credit Amount Group"</span>)</span>
+<span id="cb21-37"><a href="#cb21-37" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">"Default Rate (%)"</span>)</span>
+<span id="cb21-38"><a href="#cb21-38" aria-hidden="true" tabindex="-1"></a>plt.xticks(rotation<span class="op">=</span><span class="dv">30</span>, ha<span class="op">=</span><span class="st">"right"</span>)</span>
+<span id="cb21-39"><a href="#cb21-39" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb21-40"><a href="#cb21-40" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Default rate by credit amount group:
+            Credit_Group  count  Default_Rate_Percent
+0  (44999.999, 254700.0]  64925                  7.24
+1   (254700.0, 432000.0]  58098                  9.17
+2   (432000.0, 604152.0]  61552                 10.05
+3   (604152.0, 900000.0]  64024                  7.85
+4  (900000.0, 4050000.0]  58912                  6.08</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="eda_files/figure-html/cell-12-output-2.png" width="944" height="470" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Default risk does not consistently increase as credit amount increases. The middle credit group has the highest default rate at 10.05%, while the highest credit group has the lowest rate at 6.08%. This suggests that credit amount alone does not explain repayment difficulty. One possible reason is that the affordability of a loan depends on the applicant’s income and required payment amount, not simply the total amount borrowed. I would keep credit amount as a candidate predictor, but later analysis should also examine credit amount relative to income and annuity payments.</p>
+</section>
+<section id="how-does-default-risk-vary-by-employment-history" class="level2">
+<h2 class="anchored" data-anchor-id="how-does-default-risk-vary-by-employment-history">How does default risk vary by employment history?</h2>
+<div id="a438e65c" class="cell" data-execution_count="12">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Select employment history and target</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>employment_data <span class="op">=</span> train[[<span class="st">"DAYS_EMPLOYED"</span>, <span class="st">"TARGET"</span>]].copy()</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Remove the special DAYS_EMPLOYED value identified during data-integrity checks</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>employment_data <span class="op">=</span> employment_data[</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    employment_data[<span class="st">"DAYS_EMPLOYED"</span>] <span class="op">!=</span> <span class="dv">365243</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>].dropna()</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert negative days employed into positive years employed</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>employment_data[<span class="st">"Years_Employed"</span>] <span class="op">=</span> (</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span>employment_data[<span class="st">"DAYS_EMPLOYED"</span>] <span class="op">/</span> <span class="fl">365.25</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Group applicants by years of employment</span></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>employment_data[<span class="st">"Employment_Group"</span>] <span class="op">=</span> pd.cut(</span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>    employment_data[<span class="st">"Years_Employed"</span>],</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>    bins<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="bu">float</span>(<span class="st">"inf"</span>)],</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>    labels<span class="op">=</span>[</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Less than 1 year"</span>,</span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">"1–3 years"</span>,</span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"3–5 years"</span>,</span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">"5–10 years"</span>,</span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">"10+ years"</span></span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a>    right<span class="op">=</span><span class="va">False</span></span>
+<span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-27"><a href="#cb23-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-28"><a href="#cb23-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate default rate by employment group</span></span>
+<span id="cb23-29"><a href="#cb23-29" aria-hidden="true" tabindex="-1"></a>employment_summary <span class="op">=</span> (</span>
+<span id="cb23-30"><a href="#cb23-30" aria-hidden="true" tabindex="-1"></a>    employment_data</span>
+<span id="cb23-31"><a href="#cb23-31" aria-hidden="true" tabindex="-1"></a>    .groupby(<span class="st">"Employment_Group"</span>, observed<span class="op">=</span><span class="va">False</span>)[<span class="st">"TARGET"</span>]</span>
+<span id="cb23-32"><a href="#cb23-32" aria-hidden="true" tabindex="-1"></a>    .agg([<span class="st">"count"</span>, <span class="st">"mean"</span>])</span>
+<span id="cb23-33"><a href="#cb23-33" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb23-34"><a href="#cb23-34" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-35"><a href="#cb23-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-36"><a href="#cb23-36" aria-hidden="true" tabindex="-1"></a>employment_summary[<span class="st">"Default_Rate_Percent"</span>] <span class="op">=</span> (</span>
+<span id="cb23-37"><a href="#cb23-37" aria-hidden="true" tabindex="-1"></a>    employment_summary[<span class="st">"mean"</span>] <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb23-38"><a href="#cb23-38" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-39"><a href="#cb23-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-40"><a href="#cb23-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Default rate by employment history:"</span>)</span>
+<span id="cb23-41"><a href="#cb23-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb23-42"><a href="#cb23-42" aria-hidden="true" tabindex="-1"></a>    employment_summary[</span>
+<span id="cb23-43"><a href="#cb23-43" aria-hidden="true" tabindex="-1"></a>        [<span class="st">"Employment_Group"</span>, <span class="st">"count"</span>, <span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb23-44"><a href="#cb23-44" aria-hidden="true" tabindex="-1"></a>    ].<span class="bu">round</span>(<span class="dv">2</span>)</span>
+<span id="cb23-45"><a href="#cb23-45" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-46"><a href="#cb23-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-47"><a href="#cb23-47" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot default rate by employment history</span></span>
+<span id="cb23-48"><a href="#cb23-48" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">5</span>))</span>
+<span id="cb23-49"><a href="#cb23-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-50"><a href="#cb23-50" aria-hidden="true" tabindex="-1"></a>plt.bar(</span>
+<span id="cb23-51"><a href="#cb23-51" aria-hidden="true" tabindex="-1"></a>    employment_summary[<span class="st">"Employment_Group"</span>].astype(<span class="bu">str</span>),</span>
+<span id="cb23-52"><a href="#cb23-52" aria-hidden="true" tabindex="-1"></a>    employment_summary[<span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb23-53"><a href="#cb23-53" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-54"><a href="#cb23-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-55"><a href="#cb23-55" aria-hidden="true" tabindex="-1"></a>plt.title(<span class="st">"Default Rate by Employment History"</span>)</span>
+<span id="cb23-56"><a href="#cb23-56" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">"Years Employed"</span>)</span>
+<span id="cb23-57"><a href="#cb23-57" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">"Default Rate (%)"</span>)</span>
+<span id="cb23-58"><a href="#cb23-58" aria-hidden="true" tabindex="-1"></a>plt.xticks(rotation<span class="op">=</span><span class="dv">30</span>, ha<span class="op">=</span><span class="st">"right"</span>)</span>
+<span id="cb23-59"><a href="#cb23-59" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb23-60"><a href="#cb23-60" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Default rate by employment history:
+   Employment_Group  count  Default_Rate_Percent
+0  Less than 1 year  27982                 10.97
+1         1–3 years  61472                 11.07
+2         3–5 years  46902                  9.67
+3        5–10 years  64871                  7.37
+4         10+ years  50910                  5.19</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="eda_files/figure-html/cell-13-output-2.png" width="854" height="470" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Default risk generally decreases as employment history becomes longer. Applicants with less than three years of employment have default rates around 11%, while applicants with more than ten years of employment have a default rate of 5.19%. This suggests that employment stability may be an important indicator of repayment risk. One possible explanation is that longer employment history may reflect more stable income and financial circumstances. I would keep employment history as an important candidate predictor, while continuing to treat the special 365243 value separately rather than as a valid employment duration.</p>
+</section>
+<section id="which-categorical-variables-show-the-largest-differences-in-default-risk" class="level2">
+<h2 class="anchored" data-anchor-id="which-categorical-variables-show-the-largest-differences-in-default-risk">Which categorical variables show the largest differences in default risk?</h2>
+<div id="b786270d" class="cell" data-execution_count="13">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Select several business-relevant categorical variables</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>categorical_to_check <span class="op">=</span> [</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"NAME_INCOME_TYPE"</span>,</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"NAME_EDUCATION_TYPE"</span>,</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"NAME_HOUSING_TYPE"</span>,</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"NAME_FAMILY_STATUS"</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate default-rate range for each categorical variable</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>categorical_results <span class="op">=</span> []</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> col <span class="kw">in</span> categorical_to_check:</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>    rates <span class="op">=</span> (</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>        train.groupby(col)[<span class="st">"TARGET"</span>]</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>        .agg([<span class="st">"count"</span>, <span class="st">"mean"</span>])</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>        .reset_index()</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Keep categories with at least 100 applicants</span></span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>    rates <span class="op">=</span> rates[rates[<span class="st">"count"</span>] <span class="op">&gt;=</span> <span class="dv">100</span>]</span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a>    default_range <span class="op">=</span> (</span>
+<span id="cb25-23"><a href="#cb25-23" aria-hidden="true" tabindex="-1"></a>        rates[<span class="st">"mean"</span>].<span class="bu">max</span>() <span class="op">-</span> rates[<span class="st">"mean"</span>].<span class="bu">min</span>()</span>
+<span id="cb25-24"><a href="#cb25-24" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb25-25"><a href="#cb25-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-26"><a href="#cb25-26" aria-hidden="true" tabindex="-1"></a>    categorical_results.append({</span>
+<span id="cb25-27"><a href="#cb25-27" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Variable"</span>: col,</span>
+<span id="cb25-28"><a href="#cb25-28" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Default_Rate_Range"</span>: default_range</span>
+<span id="cb25-29"><a href="#cb25-29" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb25-30"><a href="#cb25-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-31"><a href="#cb25-31" aria-hidden="true" tabindex="-1"></a>categorical_summary <span class="op">=</span> pd.DataFrame(categorical_results)</span>
+<span id="cb25-32"><a href="#cb25-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-33"><a href="#cb25-33" aria-hidden="true" tabindex="-1"></a>categorical_summary <span class="op">=</span> categorical_summary.sort_values(</span>
+<span id="cb25-34"><a href="#cb25-34" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Default_Rate_Range"</span>,</span>
+<span id="cb25-35"><a href="#cb25-35" aria-hidden="true" tabindex="-1"></a>    ascending<span class="op">=</span><span class="va">False</span></span>
+<span id="cb25-36"><a href="#cb25-36" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb25-37"><a href="#cb25-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-38"><a href="#cb25-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Difference between highest and lowest category default rates:"</span>)</span>
+<span id="cb25-39"><a href="#cb25-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(categorical_summary.<span class="bu">round</span>(<span class="dv">2</span>))</span>
+<span id="cb25-40"><a href="#cb25-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-41"><a href="#cb25-41" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot the default-rate range for each categorical variable</span></span>
+<span id="cb25-42"><a href="#cb25-42" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">5</span>))</span>
+<span id="cb25-43"><a href="#cb25-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-44"><a href="#cb25-44" aria-hidden="true" tabindex="-1"></a>plt.bar(</span>
+<span id="cb25-45"><a href="#cb25-45" aria-hidden="true" tabindex="-1"></a>    categorical_summary[<span class="st">"Variable"</span>],</span>
+<span id="cb25-46"><a href="#cb25-46" aria-hidden="true" tabindex="-1"></a>    categorical_summary[<span class="st">"Default_Rate_Range"</span>]</span>
+<span id="cb25-47"><a href="#cb25-47" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb25-48"><a href="#cb25-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-49"><a href="#cb25-49" aria-hidden="true" tabindex="-1"></a>plt.title(<span class="st">"Variation in Default Rate Across Categorical Variables"</span>)</span>
+<span id="cb25-50"><a href="#cb25-50" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">"Categorical Variable"</span>)</span>
+<span id="cb25-51"><a href="#cb25-51" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">"Difference Between Highest and Lowest Default Rate (%)"</span>)</span>
+<span id="cb25-52"><a href="#cb25-52" aria-hidden="true" tabindex="-1"></a>plt.xticks(rotation<span class="op">=</span><span class="dv">30</span>, ha<span class="op">=</span><span class="st">"right"</span>)</span>
+<span id="cb25-53"><a href="#cb25-53" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb25-54"><a href="#cb25-54" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Difference between highest and lowest category default rates:
+              Variable  Default_Rate_Range
+1  NAME_EDUCATION_TYPE                9.10
+2    NAME_HOUSING_TYPE                5.74
+0     NAME_INCOME_TYPE                4.20
+3   NAME_FAMILY_STATUS                4.12</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="eda_files/figure-html/cell-14-output-2.png" width="838" height="470" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Among the categorical variables examined, NAME_EDUCATION_TYPE shows the largest variation in default rates, with a 9.10 percentage-point difference between its highest- and lowest-risk categories. Housing type shows the next-largest difference at 5.74 percentage points, while income type and family status show smaller differences. This suggests that education-related categories may contain useful information about repayment risk. I would retain these categorical variables for later modeling, with particular attention to education type, while also examining the individual category rates before drawing conclusions about which specific groups are higher risk.</p>
+<div id="d792691e" class="cell" data-execution_count="14">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate default rate by education category</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>education_summary <span class="op">=</span> (</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    train.groupby(<span class="st">"NAME_EDUCATION_TYPE"</span>)[<span class="st">"TARGET"</span>]</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    .agg([<span class="st">"count"</span>, <span class="st">"mean"</span>])</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    .reset_index()</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>education_summary[<span class="st">"Default_Rate_Percent"</span>] <span class="op">=</span> education_summary[<span class="st">"mean"</span>] <span class="op">*</span> <span class="dv">100</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Keep categories with at least 100 applicants</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>education_summary <span class="op">=</span> education_summary[</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    education_summary[<span class="st">"count"</span>] <span class="op">&gt;=</span> <span class="dv">100</span></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>].sort_values(<span class="st">"Default_Rate_Percent"</span>, ascending<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Default rate by education type:"</span>)</span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>    education_summary[</span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>        [<span class="st">"NAME_EDUCATION_TYPE"</span>, <span class="st">"count"</span>, <span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a>    ].<span class="bu">round</span>(<span class="dv">2</span>)</span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot default rate by education type</span></span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a>plt.bar(</span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true" tabindex="-1"></a>    education_summary[<span class="st">"NAME_EDUCATION_TYPE"</span>],</span>
+<span id="cb27-27"><a href="#cb27-27" aria-hidden="true" tabindex="-1"></a>    education_summary[<span class="st">"Default_Rate_Percent"</span>]</span>
+<span id="cb27-28"><a href="#cb27-28" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-29"><a href="#cb27-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-30"><a href="#cb27-30" aria-hidden="true" tabindex="-1"></a>plt.title(<span class="st">"Default Rate by Education Type"</span>)</span>
+<span id="cb27-31"><a href="#cb27-31" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">"Education Type"</span>)</span>
+<span id="cb27-32"><a href="#cb27-32" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">"Default Rate (%)"</span>)</span>
+<span id="cb27-33"><a href="#cb27-33" aria-hidden="true" tabindex="-1"></a>plt.xticks(rotation<span class="op">=</span><span class="dv">30</span>, ha<span class="op">=</span><span class="st">"right"</span>)</span>
+<span id="cb27-34"><a href="#cb27-34" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb27-35"><a href="#cb27-35" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Default rate by education type:
+             NAME_EDUCATION_TYPE   count  Default_Rate_Percent
+3                Lower secondary    3816                 10.93
+4  Secondary / secondary special  218391                  8.94
+2              Incomplete higher   10277                  8.48
+1               Higher education   74863                  5.36
+0                Academic degree     164                  1.83</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="eda_files/figure-html/cell-15-output-2.png" width="950" height="470" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Default risk varies meaningfully across education levels. Applicants with lower secondary education have the highest default rate at 10.93%, while applicants with higher education have a substantially lower rate of 5.36%. The academic degree group has the lowest observed rate at 1.83%, although that category contains only 164 applicants, so it should be interpreted cautiously because of the small sample size. Overall, education level appears to contain useful information about repayment risk. I would retain education type as a candidate predictor while avoiding strong conclusions from very small categories.</p>
+</section>
+<section id="which-numeric-variables-appear-most-strongly-related-to-default-risk" class="level2">
+<h2 class="anchored" data-anchor-id="which-numeric-variables-appear-most-strongly-related-to-default-risk">Which numeric variables appear most strongly related to default risk?</h2>
+<div id="889a0fad" class="cell" data-execution_count="15">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Select numeric variables</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>numeric_data <span class="op">=</span> train.select_dtypes(include<span class="op">=</span>[<span class="st">"number"</span>])</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate correlations with TARGET</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>target_correlations <span class="op">=</span> (</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>    numeric_data</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>    .corr()[<span class="st">"TARGET"</span>]</span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>    .drop(<span class="st">"TARGET"</span>)</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>    .dropna()</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Rank variables by absolute correlation with TARGET</span></span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>correlation_summary <span class="op">=</span> (</span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>    target_correlations</span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">abs</span>()</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>    .sort_values(ascending<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>    .head(<span class="dv">10</span>)</span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Top 10 numeric variables by absolute correlation with TARGET:"</span>)</span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(correlation_summary.<span class="bu">round</span>(<span class="dv">3</span>))</span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a bar chart</span></span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">6</span>))</span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a>plt.bar(</span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a>    correlation_summary.index,</span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a>    correlation_summary.values</span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a>plt.title(<span class="st">"Top Numeric Variables Associated with Default Risk"</span>)</span>
+<span id="cb29-32"><a href="#cb29-32" aria-hidden="true" tabindex="-1"></a>plt.xlabel(<span class="st">"Numeric Variable"</span>)</span>
+<span id="cb29-33"><a href="#cb29-33" aria-hidden="true" tabindex="-1"></a>plt.ylabel(<span class="st">"Absolute Correlation with TARGET"</span>)</span>
+<span id="cb29-34"><a href="#cb29-34" aria-hidden="true" tabindex="-1"></a>plt.xticks(rotation<span class="op">=</span><span class="dv">45</span>, ha<span class="op">=</span><span class="st">"right"</span>)</span>
+<span id="cb29-35"><a href="#cb29-35" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb29-36"><a href="#cb29-36" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Top 10 numeric variables by absolute correlation with TARGET:
+EXT_SOURCE_3                   0.179
+EXT_SOURCE_2                   0.160
+EXT_SOURCE_1                   0.155
+DAYS_BIRTH                     0.078
+REGION_RATING_CLIENT_W_CITY    0.061
+REGION_RATING_CLIENT           0.059
+DAYS_LAST_PHONE_CHANGE         0.055
+DAYS_ID_PUBLISH                0.051
+REG_CITY_NOT_WORK_CITY         0.051
+FLAG_EMP_PHONE                 0.046
+Name: TARGET, dtype: float64</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="eda_files/figure-html/cell-16-output-2.png" width="950" height="566" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>The three external source variables (EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3) have the strongest numeric relationships with default risk among the variables examined. Their correlations are noticeably larger than those of the remaining numeric variables, suggesting that these external scores may contain especially useful information for identifying repayment risk. Age (DAYS_BIRTH) also shows a meaningful relationship, which is consistent with the earlier age-group analysis. However, the correlations are still moderate rather than extremely strong, indicating that no single numeric variable is likely to explain default risk by itself. I would prioritize the external source variables, age, and regional risk measures for later modeling while combining them with other financial and categorical predictors.</p>
+</section>
+</section>
+<section id="conclusion" class="level1">
+<h1>Conclusion</h1>
+<section id="what-data-issues-need-to-be-addressed-before-modeling" class="level2">
+<h2 class="anchored" data-anchor-id="what-data-issues-need-to-be-addressed-before-modeling">What data issues need to be addressed before modeling?</h2>
+<p>Several data-quality issues should be addressed before modeling. Missing values are widespread, with 67 variables containing missing data and some property-related variables missing for more than two-thirds of applicants. The DAYS_EMPLOYED variable also contains the special value 365243 for 18.01% of applicants, which should not be treated as a normal employment duration. The target is highly imbalanced, with only 8.07% of applicants experiencing repayment difficulty. Before modeling, I would handle highly missing variables carefully, recode special values appropriately, and use evaluation measures that account for the target imbalance.</p>
+</section>
+<section id="which-variables-appear-most-useful" class="level2">
+<h2 class="anchored" data-anchor-id="which-variables-appear-most-useful">Which variables appear most useful?</h2>
+<p>The EDA suggests that several variables may be especially useful for predicting repayment difficulty. The external source variables show the strongest numeric relationships with the target. Age and employment history also show clear differences in default rates, with younger applicants and applicants with shorter employment histories experiencing higher default rates. Education type shows meaningful separation among categorical variables, while income and credit amount appear less useful when considered individually. I would therefore prioritize external scores, age, employment history, education, and selected regional indicators while still testing financial variables in combination rather than relying on them alone.</p>
+</section>
+<section id="how-did-the-eda-change-or-confirm-the-business-problem" class="level2">
+<h2 class="anchored" data-anchor-id="how-did-the-eda-change-or-confirm-the-business-problem">How did the EDA change or confirm the business problem?</h2>
+<p>The EDA supports the original business problem of improving Home Credit’s ability to identify applicants who are more likely to experience repayment difficulty, but it also shows that risk cannot be explained by a single financial measure. Income and credit amount alone show relatively weak or non-linear relationships with default, while age, employment history, education, and external credit-related scores show clearer differences. This suggests that Home Credit should use a combination of applicant characteristics and financial information when assessing repayment capacity. The findings also reinforce the need for careful data preparation before developing a predictive model.</p>
+</section>
+</section>
+<section id="ai-use" class="level1">
+<h1>AI Use</h1>
+<p>I used AI to help me understand the expected format and organization of the EDA notebook. I also used AI to troubleshoot code errors when they occurred and to help explain why certain code was not running correctly. I reviewed the suggested fixes and used them to continue the analysis, while the final results and interpretations were based on the output from my own notebook.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
