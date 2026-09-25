@@ -15,21 +15,35 @@ test <- read_csv("application_test.csv")
 # DAYS_EMPLOYED = 365243 is a special placeholder value, so convert it to NA first.
 
 prepare_demographic_features <- function(data) {
-  
+
   data <- data %>%
     mutate(
       AGE_YEARS = -DAYS_BIRTH / 365.25,
-      DAYS_EMPLOYED = if_else(DAYS_EMPLOYED == 365243, NA_real_, DAYS_EMPLOYED),
+
+      AGE_GROUP = cut(
+        AGE_YEARS,
+        breaks = c(20, 30, 40, 50, 60, 70),
+        labels = c("20-29", "30-39", "40-49", "50-59", "60-69"),
+        include.lowest = TRUE,
+        right = FALSE
+      ),
+
+      DAYS_EMPLOYED = if_else(
+        DAYS_EMPLOYED == 365243,
+        NA_real_,
+        DAYS_EMPLOYED
+      ),
+
       EMPLOYMENT_YEARS = -DAYS_EMPLOYED / 365.25
     )
-  
+
   return(data)
 }
 
 train_test <- prepare_demographic_features(train)
 
 train_test %>%
-  select(DAYS_BIRTH, AGE_YEARS, DAYS_EMPLOYED, EMPLOYMENT_YEARS) %>%
+  select(AGE_YEARS, AGE_GROUP) %>%
   head()
 
 # Create financial features based on the EDA.

@@ -25,6 +25,7 @@ The `data_preparation.R` script converts the exploratory data analysis findings 
 The script:
 
 - Converts `DAYS_BIRTH` into `AGE_YEARS`.
+- Creates `AGE_GROUP` from `AGE_YEARS` using the same age ranges examined in the EDA.
 - Replaces the special `DAYS_EMPLOYED = 365243` value with missing data and creates `EMPLOYMENT_YEARS`.
 - Creates financial ratios:
   - `CREDIT_INCOME_RATIO`
@@ -34,12 +35,12 @@ The script:
 - Creates `TOTAL_MISSING` to summarize missing information for each applicant.
 - Applies the same preparation functions to both the training and test datasets.
 - Checks that the prepared training and test datasets contain identical predictor columns, except for `TARGET`, which is only present in the training data.
+- Confirms that each `SK_ID_CURR` remains unique after preparation.
+- Confirms that the number of rows remains unchanged after preparation.
 
-These transformations reflect findings from the EDA. Age and employment history showed differences in default risk, financial relationships were more useful when expressed relative to income or payments, and missingness was associated with differences in default rates.
+These transformations reflect findings from the EDA. Age and employment history showed differences in default risk, financial relationships were more useful when expressed relative to income or payments, and missingness was associated with differences in default rates. The age-group feature also preserves the age ranges used during the exploratory analysis.
 
-Validation confirmed that the training and test data have identical predictor columns, excluding TARGET, and each SK_ID_CURR remains unique after preparation.
-
-No imputation means, medians, or binning thresholds are learned in the current preparation script, so there are no train-derived parameters that need to be reused on the test set.
+No imputation means, medians, or binning thresholds are learned from the training data in the current preparation script, so there are no train-derived parameters that need to be reused on the test set.
 
 ### Running the Script
 
