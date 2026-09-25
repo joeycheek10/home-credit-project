@@ -37,6 +37,10 @@ The script:
 
 These transformations reflect findings from the EDA. Age and employment history showed differences in default risk, financial relationships were more useful when expressed relative to income or payments, and missingness was associated with differences in default rates.
 
+Validation confirmed that the training and test data have identical predictor columns, excluding TARGET, and each SK_ID_CURR remains unique after preparation.
+
+No imputation means, medians, or binning thresholds are learned in the current preparation script, so there are no train-derived parameters that need to be reused on the test set.
+
 ### Running the Script
 
 Run:

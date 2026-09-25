@@ -132,3 +132,8 @@ stopifnot(identical(
 
 stopifnot(nrow(train_prepared) == nrow(train))
 stopifnot(nrow(test_prepared) == nrow(test))
+
+# Confirm each applicant remains represented by one row.
+
+stopifnot(!anyDuplicated(train_prepared$SK_ID_CURR))
+stopifnot(!anyDuplicated(test_prepared$SK_ID_CURR))
