@@ -2,3 +2,6 @@ application_train.csv
 application_test.csv
 application_train_prepared.csv
 application_test_prepared.csv
+home_credit_submission.csv
+Modeling.html
+Modeling_files/

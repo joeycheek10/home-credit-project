@@ -52,3 +52,31 @@ source("data_preparation.R")
 ## Author
 
 Joey Cheek
+
+## Modeling
+
+The modeling phase compared several classification approaches for predicting Home Credit repayment difficulty.
+
+Models evaluated included:
+
+- Majority-class benchmark
+- Logistic regression
+- Random forest
+- XGBoost
+- Class-weighted XGBoost
+
+Model performance was compared using 3-fold cross-validated AUC because the target variable is highly imbalanced.
+
+The strongest candidate was XGBoost, with a mean cross-validated AUC of approximately 0.748. Class weighting did not improve performance, so the unweighted XGBoost model was selected for tuning.
+
+Hyperparameter tuning was performed using a randomized search on a 5,000-row sample with 3-fold cross-validation. The tuned model was then trained on the full training dataset.
+
+Final model performance:
+
+- Training AUC: 0.751
+- 3-fold cross-validated AUC: 0.748
+- Training runtime: approximately 1.30 seconds
+- Kaggle public score: 0.74557
+- Kaggle private score: 0.73809
+
+The modeling notebook is available in `Modeling.qmd`.

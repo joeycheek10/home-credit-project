@@ -1,0 +1,731 @@
+---
+title: "Home Credit Modeling"
+author: "Joey Cheek"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    code-tools: true
+execute:
+  warning: false
+  message: false
+---
+
+# Introduction
+
+The goal of this modeling notebook is to develop and compare predictive models for identifying Home Credit applicants who are more likely to experience repayment difficulty.
+
+The business problem is to improve Home Credit's ability to assess applicant repayment risk while balancing two competing goals: reducing preventable credit losses and avoiding unnecessary rejection of applicants who are capable of repayment.
+
+The analytical problem is a binary classification task in which the target variable, `TARGET`, indicates whether an applicant experienced repayment difficulty. Because defaults represent only a small proportion of the training data, model evaluation must account for class imbalance rather than relying only on overall accuracy.
+
+This notebook will:
+
+- Establish a simple performance benchmark.
+- Compare multiple candidate classification models.
+- Evaluate models using cross-validated AUC.
+- Test approaches for addressing class imbalance.
+- Tune the best-performing model.
+- Evaluate final model performance.
+- Generate predicted probabilities for the Home Credit test data.
+- Create a Kaggle submission and record the resulting score.
+
+
+# Data Preparation
+
+The modeling analysis uses the prepared Home Credit training and test datasets created during the data preparation phase of the project.
+
+The preparation process included:
+
+- Converting `DAYS_BIRTH` into `AGE_YEARS`.
+- Creating `AGE_GROUP`.
+- Converting the special `DAYS_EMPLOYED = 365243` value to missing and creating `EMPLOYMENT_YEARS`.
+- Creating financial ratios including:
+  - `CREDIT_INCOME_RATIO`
+  - `ANNUITY_INCOME_RATIO`
+  - `CREDIT_ANNUITY_RATIO`
+- Creating missing-value indicators for `EXT_SOURCE_1`, `EXT_SOURCE_2`, and `EXT_SOURCE_3`.
+- Creating `TOTAL_MISSING` to summarize missing information for each applicant.
+- Applying identical preparation steps to the training and test datasets.
+
+Additional modeling-specific preparation will be performed below as needed, including handling remaining missing values and converting categorical predictors into a format appropriate for each model.
+
+```{r}
+# Load packages used for modeling and data handling.
+library(readr)
+library(dplyr)
+
+# Load the prepared training and test datasets.
+train_model <- read_csv("application_train_prepared.csv", show_col_types = FALSE)
+test_model <- read_csv("application_test_prepared.csv", show_col_types = FALSE)
+
+# Confirm dimensions.
+dim(train_model)
+dim(test_model)
+```
+
+
+# Performance Benchmark
+
+Before comparing more advanced models, a simple majority-class benchmark is established. Because the target is highly imbalanced, a classifier that predicts the majority class for every applicant can achieve high accuracy while having little usefulness for identifying repayment difficulty. For that reason, both accuracy and AUC are reported.
+
+```{r}
+# Examine the target distribution.
+target_summary <- train_model %>%
+  count(TARGET) %>%
+  mutate(
+    proportion = n / sum(n)
+  )
+
+target_summary
+```
+
+The training data are highly imbalanced. Approximately 91.9% of applicants did not experience repayment difficulty, while about 8.1% did. This means that a majority-class model could achieve high accuracy simply by predicting no repayment difficulty for every applicant, so AUC will be a more useful measure for comparing predictive models.
+
+```{r}
+# Majority-class benchmark: predict TARGET = 0 for every applicant.
+benchmark_accuracy <- mean(train_model$TARGET == 0)
+
+# A constant prediction has no ranking ability, so benchmark AUC is 0.50.
+benchmark_auc <- 0.50
+
+benchmark_results <- tibble(
+  Model = "Majority Class Benchmark",
+  Accuracy = benchmark_accuracy,
+  AUC = benchmark_auc
+)
+
+benchmark_results
+```
+
+The majority-class benchmark achieves 91.9% accuracy because most applicants do not experience repayment difficulty. However, its AUC is 0.50, which indicates no discriminatory ability. This confirms that accuracy alone is misleading for this imbalanced problem and that candidate models should primarily be compared using AUC.
+
+
+# Candidate Models
+
+## Logistic Regression
+
+Logistic regression is used as the first candidate model because the outcome is binary and the model provides an interpretable baseline beyond the majority-class benchmark. A focused set of numeric predictors identified during the exploratory and data preparation stages is used first.
+
+Before fitting the model, remaining missing numeric values are replaced using medians calculated from the training data. These training-derived medians are then reused whenever the same predictors are processed.
+
+```{r}
+# Select a manageable set of numeric predictors for the first model.
+logistic_vars <- c(
+  "TARGET",
+  "EXT_SOURCE_1",
+  "EXT_SOURCE_2",
+  "EXT_SOURCE_3",
+  "AGE_YEARS",
+  "EMPLOYMENT_YEARS",
+  "CREDIT_INCOME_RATIO",
+  "ANNUITY_INCOME_RATIO",
+  "CREDIT_ANNUITY_RATIO",
+  "TOTAL_MISSING"
+)
+
+logistic_data <- train_model %>%
+  select(all_of(logistic_vars))
+
+# Check missing values before modeling.
+missing_before <- colSums(is.na(logistic_data))
+
+missing_before
+```
+
+Several predictors still contain missing values, especially `EXT_SOURCE_1`, `EXT_SOURCE_3`, and `EMPLOYMENT_YEARS`. To keep all observations available for modeling, the remaining numeric missing values are replaced with medians calculated from the training data. Using training-derived medians avoids using information from outside the training data when preparing predictors.
+
+```{r}
+# Calculate training-data medians for predictors with missing values.
+imputation_medians <- logistic_data %>%
+  select(-TARGET) %>%
+  summarise(across(everything(), ~ median(.x, na.rm = TRUE)))
+
+# Replace missing predictor values with the training-data medians.
+logistic_data_imputed <- logistic_data
+
+for (variable in names(imputation_medians)) {
+  logistic_data_imputed[[variable]][is.na(logistic_data_imputed[[variable]])] <-
+    imputation_medians[[variable]]
+}
+
+# Confirm that no missing values remain.
+colSums(is.na(logistic_data_imputed))
+```
+
+All missing values in the selected logistic-regression predictors were successfully replaced using medians calculated from the training data. This allows the full training sample to be retained for modeling without dropping observations.
+
+```{r}
+# Fit a logistic regression model using the selected predictors.
+logistic_model <- glm(
+  TARGET ~
+    EXT_SOURCE_1 +
+    EXT_SOURCE_2 +
+    EXT_SOURCE_3 +
+    AGE_YEARS +
+    EMPLOYMENT_YEARS +
+    CREDIT_INCOME_RATIO +
+    ANNUITY_INCOME_RATIO +
+    CREDIT_ANNUITY_RATIO +
+    TOTAL_MISSING,
+  data = logistic_data_imputed,
+  family = binomial()
+)
+
+# Generate predicted probabilities on the training data.
+logistic_prob <- predict(
+  logistic_model,
+  newdata = logistic_data_imputed,
+  type = "response"
+)
+
+# Confirm the prediction range.
+range(logistic_prob)
+```
+
+The logistic regression model produced valid predicted probabilities ranging from approximately 0.003 to 0.688. This indicates that the model is differentiating applicants across a range of estimated repayment-risk levels.
+
+```{r}
+# Load modeling packages for cross-validation and AUC.
+library(rsample)
+library(yardstick)
+
+# Convert TARGET to a factor for classification metrics.
+logistic_cv_data <- logistic_data_imputed %>%
+  mutate(TARGET = factor(TARGET, levels = c(0, 1)))
+
+# Create 3-fold stratified cross-validation folds.
+set.seed(123)
+
+cv_folds <- vfold_cv(
+  logistic_cv_data,
+  v = 3,
+  strata = TARGET
+)
+
+cv_folds
+```
+
+```{r}
+# Calculate cross-validated AUC for logistic regression.
+cv_auc_results <- lapply(cv_folds$splits, function(split) {
+
+  train_fold <- analysis(split)
+  validation_fold <- assessment(split)
+
+  fold_model <- glm(
+    TARGET ~
+      EXT_SOURCE_1 +
+      EXT_SOURCE_2 +
+      EXT_SOURCE_3 +
+      AGE_YEARS +
+      EMPLOYMENT_YEARS +
+      CREDIT_INCOME_RATIO +
+      ANNUITY_INCOME_RATIO +
+      CREDIT_ANNUITY_RATIO +
+      TOTAL_MISSING,
+    data = train_fold,
+    family = binomial()
+  )
+
+  fold_prob <- predict(
+    fold_model,
+    newdata = validation_fold,
+    type = "response"
+  )
+
+  roc_auc_vec(
+    truth = validation_fold$TARGET,
+    estimate = fold_prob,
+    event_level = "second"
+  )
+})
+
+cv_auc_values <- unlist(cv_auc_results)
+
+cv_auc_values
+mean(cv_auc_values)
+```
+
+The logistic regression produced a mean 3-fold cross-validated AUC of approximately 0.724. Performance was consistent across the three folds, suggesting that the model generalizes reasonably well beyond the training data. This is a substantial improvement over the majority-class benchmark AUC of 0.50.
+
+
+## Random Forest
+
+A random forest is evaluated as a second candidate model because it can capture nonlinear relationships and interactions among predictors without requiring them to be specified in advance. The same prepared predictor set is used so that its performance can be compared fairly with logistic regression.
+
+```{r}
+# Load random forest package.
+library(ranger)
+
+# Convert TARGET to a factor for classification.
+rf_data <- logistic_data_imputed %>%
+  mutate(TARGET = factor(TARGET, levels = c(0, 1)))
+
+# Fit a random forest model.
+set.seed(123)
+
+rf_model <- ranger(
+  TARGET ~ .,
+  data = rf_data,
+  probability = TRUE,
+  num.trees = 300,
+  importance = "impurity"
+)
+
+rf_model
+```
+
+The random forest model was successfully trained using 300 trees and the same nine predictors used in the logistic regression model. This provides a nonlinear candidate model that can capture interactions and more complex relationships among predictors.
+
+```{r}
+# Calculate cross-validated AUC for the random forest.
+rf_cv_auc_results <- lapply(cv_folds$splits, function(split) {
+
+  train_fold <- analysis(split)
+  validation_fold <- assessment(split)
+
+  rf_fold_model <- ranger(
+    TARGET ~ .,
+    data = train_fold,
+    probability = TRUE,
+    num.trees = 200,
+    mtry = 3
+  )
+
+  rf_fold_prob <- predict(
+    rf_fold_model,
+    data = validation_fold
+  )$predictions[, "1"]
+
+  roc_auc_vec(
+    truth = validation_fold$TARGET,
+    estimate = rf_fold_prob,
+    event_level = "second"
+  )
+})
+
+rf_cv_auc_values <- unlist(rf_cv_auc_results)
+
+rf_cv_auc_values
+mean(rf_cv_auc_values)
+```
+
+The random forest produced a mean 3-fold cross-validated AUC of approximately 0.723. This is very similar to the logistic regression result of approximately 0.724, but slightly lower. Based on out-of-sample AUC, logistic regression currently performs marginally better.
+
+
+## XGBoost
+
+XGBoost is evaluated as a third candidate model because gradient boosting can capture nonlinear relationships and interactions while building trees sequentially to improve predictive performance. The same predictor set is used so its cross-validated AUC can be compared directly with logistic regression and random forest.
+
+```{r}
+# Load XGBoost.
+library(xgboost)
+
+# Prepare predictors as a numeric matrix.
+xgb_x <- logistic_data_imputed %>%
+  select(-TARGET) %>%
+  as.matrix()
+
+xgb_y <- logistic_data_imputed$TARGET
+
+# Confirm dimensions.
+dim(xgb_x)
+length(xgb_y)
+```
+
+```{r}
+# Create fold assignments for 3-fold cross-validation.
+set.seed(123)
+
+fold_ids <- sample(
+  rep(1:3, length.out = nrow(xgb_x))
+)
+
+xgb_cv_auc_values <- numeric(3)
+
+for (fold in 1:3) {
+
+  train_idx <- which(fold_ids != fold)
+  valid_idx <- which(fold_ids == fold)
+
+  dtrain <- xgb.DMatrix(
+    data = xgb_x[train_idx, ],
+    label = xgb_y[train_idx]
+  )
+
+  dvalid <- xgb.DMatrix(
+    data = xgb_x[valid_idx, ],
+    label = xgb_y[valid_idx]
+  )
+
+  xgb_model_fold <- xgb.train(
+    params = list(
+      objective = "binary:logistic",
+      eval_metric = "auc",
+      max_depth = 4,
+      eta = 0.05,
+      subsample = 0.8,
+      colsample_bytree = 0.8
+    ),
+    data = dtrain,
+    nrounds = 150,
+    verbose = 0
+  )
+
+  xgb_prob <- predict(
+    xgb_model_fold,
+    dvalid
+  )
+
+  xgb_cv_auc_values[fold] <- roc_auc_vec(
+    truth = factor(xgb_y[valid_idx], levels = c(0, 1)),
+    estimate = xgb_prob,
+    event_level = "second"
+  )
+}
+
+xgb_cv_auc_values
+mean(xgb_cv_auc_values)
+```
+
+The XGBoost model produced a mean 3-fold cross-validated AUC of approximately 0.748, outperforming both logistic regression and random forest. Based on estimated out-of-sample AUC, XGBoost is currently the strongest candidate model.
+
+
+# Addressing Class Imbalance
+
+Because only about 8.1% of applicants in the training data experienced repayment difficulty, the target is highly imbalanced. To test whether adjusting for this imbalance improves performance, XGBoost is evaluated with additional weight placed on the minority class.
+
+The class weight is calculated as the number of non-default observations divided by the number of default observations. Performance is then compared with the original unweighted XGBoost model using 3-fold cross-validated AUC.
+
+```{r}
+# Calculate the positive-class weight.
+n_negative <- sum(xgb_y == 0)
+n_positive <- sum(xgb_y == 1)
+
+scale_pos_weight_value <- n_negative / n_positive
+
+scale_pos_weight_value
+```
+
+The calculated positive-class weight is approximately 11.39, reflecting the strong imbalance in the training data. This value will be used in XGBoost to give greater emphasis to the minority default class during model training.
+
+```{r}
+# Evaluate XGBoost with class weighting.
+weighted_xgb_auc_values <- numeric(3)
+
+for (fold in 1:3) {
+
+  train_idx <- which(fold_ids != fold)
+  valid_idx <- which(fold_ids == fold)
+
+  dtrain <- xgb.DMatrix(
+    data = xgb_x[train_idx, ],
+    label = xgb_y[train_idx]
+  )
+
+  dvalid <- xgb.DMatrix(
+    data = xgb_x[valid_idx, ],
+    label = xgb_y[valid_idx]
+  )
+
+  weighted_xgb_model <- xgb.train(
+    params = list(
+      objective = "binary:logistic",
+      eval_metric = "auc",
+      max_depth = 4,
+      eta = 0.05,
+      subsample = 0.8,
+      colsample_bytree = 0.8,
+      scale_pos_weight = scale_pos_weight_value
+    ),
+    data = dtrain,
+    nrounds = 150,
+    verbose = 0
+  )
+
+  weighted_prob <- predict(
+    weighted_xgb_model,
+    dvalid
+  )
+
+  weighted_xgb_auc_values[fold] <- roc_auc_vec(
+    truth = factor(xgb_y[valid_idx], levels = c(0, 1)),
+    estimate = weighted_prob,
+    event_level = "second"
+  )
+}
+
+weighted_xgb_auc_values
+mean(weighted_xgb_auc_values)
+```
+
+The class-weighted XGBoost model produced a mean 3-fold cross-validated AUC of approximately 0.747. This is slightly lower than the unweighted XGBoost mean AUC of approximately 0.748. Therefore, class weighting did not improve estimated out-of-sample AUC, and the unweighted XGBoost model will remain the preferred version for further tuning.
+
+```{r}
+# Compare candidate model performance.
+model_comparison <- tibble(
+  Model = c(
+    "Majority Class Benchmark",
+    "Logistic Regression",
+    "Random Forest",
+    "XGBoost",
+    "Weighted XGBoost"
+  ),
+  Mean_CV_AUC = c(
+    0.5000,
+    mean(cv_auc_values),
+    mean(rf_cv_auc_values),
+    mean(xgb_cv_auc_values),
+    mean(weighted_xgb_auc_values)
+  )
+)
+
+model_comparison
+```
+
+The candidate-model comparison shows that XGBoost achieved the highest estimated out-of-sample AUC at approximately 0.748. Logistic regression and random forest performed similarly at approximately 0.724 and 0.723, while class weighting did not improve XGBoost performance. Based on these results, the unweighted XGBoost model was selected for hyperparameter tuning.
+
+
+# Hyperparameter Tuning
+
+Because XGBoost produced the highest cross-validated AUC, it was selected for hyperparameter tuning. To reduce computation time, tuning is performed on a random sample of 5,000 observations using 3-fold cross-validation. A randomized search is used rather than an exhaustive grid search.
+
+```{r}
+# Create a 5,000-row sample for efficient tuning.
+set.seed(123)
+
+tune_idx <- sample(
+  seq_len(nrow(xgb_x)),
+  size = 5000
+)
+
+xgb_tune_x <- xgb_x[tune_idx, ]
+xgb_tune_y <- xgb_y[tune_idx]
+
+dim(xgb_tune_x)
+length(xgb_tune_y)
+```
+
+
+# Randomized hyperparameter search for XGBoost.
+
+```{r}
+# Randomized hyperparameter search for XGBoost.
+set.seed(123)
+
+tuning_results <- tibble(
+  max_depth = integer(),
+  eta = double(),
+  subsample = double(),
+  colsample_bytree = double(),
+  nrounds = integer(),
+  mean_auc = double()
+)
+
+for (i in 1:20) {
+
+  max_depth_i <- sample(3:7, 1)
+  eta_i <- runif(1, 0.02, 0.15)
+  subsample_i <- runif(1, 0.65, 1.00)
+  colsample_i <- runif(1, 0.65, 1.00)
+  nrounds_i <- sample(seq(100, 300, by = 25), 1)
+
+  dtrain_tune <- xgb.DMatrix(
+    data = xgb_tune_x,
+    label = xgb_tune_y
+  )
+
+  cv_result <- xgb.cv(
+    params = list(
+      objective = "binary:logistic",
+      eval_metric = "auc",
+      max_depth = max_depth_i,
+      eta = eta_i,
+      subsample = subsample_i,
+      colsample_bytree = colsample_i
+    ),
+    data = dtrain_tune,
+    nrounds = nrounds_i,
+    nfold = 3,
+    stratified = TRUE,
+    verbose = 0
+  )
+
+  best_auc_i <- max(cv_result$evaluation_log$test_auc_mean)
+
+  tuning_results <- bind_rows(
+    tuning_results,
+    tibble(
+      max_depth = max_depth_i,
+      eta = eta_i,
+      subsample = subsample_i,
+      colsample_bytree = colsample_i,
+      nrounds = nrounds_i,
+      mean_auc = best_auc_i
+    )
+  )
+}
+
+tuning_results %>%
+  arrange(desc(mean_auc)) %>%
+  slice_head(n = 5)
+```
+
+The randomized search evaluated 20 XGBoost hyperparameter combinations using a 5,000-observation sample and 3-fold cross-validation. The best sampled combination used a maximum tree depth of 4, learning rate of approximately 0.041, subsample rate of approximately 0.822, column sampling rate of approximately 0.874, and 125 boosting rounds. Because tuning was intentionally performed on a small subsample to reduce computation time, the tuning AUC should not be compared directly with the full-data cross-validation results.
+
+
+# Final Model
+
+The best hyperparameter combination from the randomized search is now used to train the final XGBoost model on the complete training dataset.
+
+```{r}
+# Identify the best hyperparameter combination.
+best_params <- tuning_results %>%
+  arrange(desc(mean_auc)) %>%
+  slice(1)
+
+best_params
+
+# Create the full training matrix.
+dtrain_full <- xgb.DMatrix(
+  data = xgb_x,
+  label = xgb_y
+)
+
+# Record training time for the final model.
+start_time <- Sys.time()
+
+final_xgb_model <- xgb.train(
+  params = list(
+    objective = "binary:logistic",
+    eval_metric = "auc",
+    max_depth = best_params$max_depth,
+    eta = best_params$eta,
+    subsample = best_params$subsample,
+    colsample_bytree = best_params$colsample_bytree
+  ),
+  data = dtrain_full,
+  nrounds = best_params$nrounds,
+  verbose = 0
+)
+
+end_time <- Sys.time()
+
+final_runtime <- end_time - start_time
+
+final_runtime
+```
+
+The final tuned XGBoost model was trained on the full training dataset using the best hyperparameters identified during randomized search. Training completed in approximately 1.30 seconds, showing that the final model was computationally efficient despite using the complete dataset.
+
+
+```{r}
+# Generate predicted probabilities on the full training data.
+final_train_prob <- predict(
+  final_xgb_model,
+  dtrain_full
+)
+
+# Calculate training AUC.
+final_train_auc <- roc_auc_vec(
+  truth = factor(xgb_y, levels = c(0, 1)),
+  estimate = final_train_prob,
+  event_level = "second"
+)
+
+# Store the previously estimated out-of-sample AUC.
+final_cv_auc <- mean(xgb_cv_auc_values)
+
+final_performance <- tibble(
+  Metric = c(
+    "Training AUC",
+    "3-Fold Cross-Validated AUC",
+    "Training Runtime (seconds)"
+  ),
+  Value = c(
+    final_train_auc,
+    final_cv_auc,
+    as.numeric(final_runtime, units = "secs")
+  )
+)
+final_performance
+```
+
+The final tuned XGBoost model achieved a training AUC of 0.751 and an estimated out-of-sample AUC of 0.748 using 3-fold cross-validation. The small difference between these values suggests limited overfitting. The model also trained quickly, with a runtime of approximately 1.30 seconds. Performance on the unseen competition test set will be evaluated using the Kaggle submission score.
+
+
+# Kaggle Submission
+
+The final model is applied to the Home Credit test dataset to generate predicted probabilities of repayment difficulty. The same predictor variables and training-derived median values used during model development are applied to the test data.
+
+```{r}
+# Use the same nine predictors used to train the final model.
+predictor_vars <- setdiff(logistic_vars, "TARGET")
+
+test_xgb_data <- test_model %>%
+  select(all_of(predictor_vars))
+
+# Apply the training-derived medians to missing test values.
+for (variable in predictor_vars) {
+  test_xgb_data[[variable]][is.na(test_xgb_data[[variable]])] <-
+    imputation_medians[[variable]]
+}
+
+# Confirm no missing values remain.
+colSums(is.na(test_xgb_data))
+
+# Convert test predictors to an XGBoost matrix.
+xgb_test_x <- as.matrix(test_xgb_data)
+
+dtest <- xgb.DMatrix(
+  data = xgb_test_x
+)
+
+# Generate final test-set probabilities.
+test_prob <- predict(
+  final_xgb_model,
+  dtest
+)
+
+# Create the Kaggle submission file.
+submission <- tibble(
+  SK_ID_CURR = test_model$SK_ID_CURR,
+  TARGET = test_prob
+)
+
+# Check the submission.
+dim(submission)
+head(submission)
+
+# Save locally for upload to Kaggle.
+write_csv(
+  submission,
+  "home_credit_submission.csv"
+)
+```
+
+The final XGBoost model was submitted to the Home Credit Default Risk Kaggle competition. The submission achieved a public leaderboard score of 0.74557 and a private leaderboard score of 0.73809. These results are consistent with the model's cross-validated AUC of approximately 0.748, suggesting that the validation procedure provided a reasonable estimate of out-of-sample performance.
+
+
+# Results
+
+The modeling process compared a majority-class benchmark, logistic regression, random forest, XGBoost, and a class-weighted XGBoost model. Because the target variable is highly imbalanced, model selection focused primarily on cross-validated AUC rather than accuracy.
+
+The majority-class benchmark achieved 91.9% accuracy but an AUC of 0.50, showing that accuracy alone was misleading. Logistic regression achieved a mean 3-fold cross-validated AUC of approximately 0.724, while random forest achieved approximately 0.723. XGBoost performed best with a mean cross-validated AUC of approximately 0.748. Applying class weighting did not improve performance, with weighted XGBoost producing a mean AUC of approximately 0.747.
+
+The best XGBoost model was selected for hyperparameter tuning using a 5,000-row sample and 3-fold cross-validation. The tuned model was then trained on the full training dataset. The final model achieved a training AUC of 0.751 and a cross-validated AUC of approximately 0.748, with a training runtime of about 1.30 seconds.
+
+The final model was submitted to the Home Credit Default Risk Kaggle competition. It achieved a public leaderboard score of 0.74557 and a private leaderboard score of 0.73809. These scores are reasonably close to the cross-validated AUC, supporting the use of cross-validation as an estimate of out-of-sample performance.
+
+From a business perspective, the model provides a stronger method for ranking applicants by repayment risk than a simple majority-class approach. Home Credit could use predicted probabilities as one input in the lending decision process to help identify higher-risk applicants while still preserving human review and other business rules. The model should support, rather than fully replace, lending decisions.
+
+
+
+
+
+
+
+
+
