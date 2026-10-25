@@ -1,0 +1,667 @@
+---
+title: "Home Credit Default Risk — Model Card"
+author: "Joey Cheek"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+# Executive Summary
+
+Home Credit needs to balance two competing goals: reducing credit losses while continuing to provide access to borrowers who may have limited traditional credit histories. This project developed a machine learning model to estimate the probability that an applicant will experience repayment difficulty and to support more informed underwriting decisions.
+
+Several candidate models were evaluated, including logistic regression, random forest, XGBoost, and class-weighted XGBoost. The final **XGBoost model** produced the strongest out-of-sample performance, with a **3-fold cross-validated AUC of 0.748** and a **private Kaggle AUC of 0.738**. These results indicate useful risk-ranking ability that remains reasonably stable on unseen data.
+
+A business-cost analysis was used to select a decision threshold rather than relying on the conventional 0.50 cutoff. Using published lending assumptions for the opportunity cost of rejecting a good borrower and the loss associated with default, the estimated minimum-cost threshold was **0.23**. At this threshold, the model achieved **34.0% precision** and **17.4% recall**.
+
+The model should not be used as a fully automated approval or denial system. Instead, applicants above the selected risk threshold could be prioritized for enhanced underwriting review, additional documentation, or other risk-management actions. A controlled pilot should be used to determine whether this approach actually reduces losses or improves review efficiency in practice.
+
+SHAP analysis shows that the model relies most heavily on external credit-risk measures, particularly **EXT_SOURCE_2** and **EXT_SOURCE_3**, followed by affordability and employment-related features. These results provide a basis for explaining model behavior and translating important risk factors into human-readable adverse-action reasons.
+
+The initial fairness analysis identified a **96.5% approval rate for female applicants and 94.7% for male applicants**, while approval rates across education groups ranged from approximately **94.5% to 97.3%**. These disparities are relatively modest but should not be treated as proof of fairness. More detailed monitoring of error rates, calibration, proxy effects, and group outcomes would be required before full deployment.
+
+Overall, the model shows sufficient predictive and business value to justify a **controlled pilot with human oversight**, but not unrestricted automated deployment. The pilot should validate the lending-cost assumptions, measure actual financial impact, monitor fairness and performance, and confirm that model explanations remain accurate and useful for underwriting decisions.
+
+# Model Details
+
+## Model Overview
+
+The final model is an **XGBoost binary classification model** that estimates the probability that an applicant will experience repayment difficulty.
+
+The outcome variable is `TARGET`:
+
+- `TARGET = 0`: Applicant did not experience repayment difficulty.
+- `TARGET = 1`: Applicant experienced repayment difficulty.
+
+The training dataset contains **307,511 applicants**, including **24,825 applicants with repayment difficulty**, representing approximately **8.1%** of the training sample.
+
+Because the outcome is highly imbalanced, model evaluation focuses primarily on **AUC** rather than overall accuracy.
+
+## Final Model Selection
+
+The following candidate models were compared using 3-fold cross-validation:
+
+| Model | Cross-Validated AUC |
+|---|---:|
+| Majority-class benchmark | 0.500 |
+| Logistic regression | 0.724 |
+| Random forest | 0.723 |
+| XGBoost | **0.748** |
+| Class-weighted XGBoost | 0.747 |
+
+XGBoost produced the highest cross-validated AUC. Class weighting did not improve performance, so the standard XGBoost model was selected as the final model.
+
+## Final Hyperparameters
+
+The final model used hyperparameters selected through randomized tuning on a 5,000-row training sample with 3-fold cross-validation.
+
+The selected settings were:
+
+- **Maximum tree depth:** 4
+- **Learning rate (`eta`):** approximately 0.0405
+- **Subsample proportion:** approximately 0.822
+- **Column sample per tree:** approximately 0.874
+- **Number of boosting rounds:** 125
+
+The final model was then trained using the full prepared training dataset.
+
+# Intended Use
+
+## Intended Users
+
+The primary intended users are Home Credit employees involved in:
+
+- Credit risk management
+- Loan underwriting
+- Lending policy
+- Portfolio risk monitoring
+- Model risk management
+
+## Intended Decision
+
+The model is designed to estimate and rank applicants by their predicted probability of repayment difficulty.
+
+The model may support decisions such as:
+
+- Prioritizing higher-risk applications for enhanced review
+- Identifying applications that may require additional documentation
+- Supporting underwriting decisions alongside existing lending policies
+- Monitoring the risk profile of groups of applicants
+
+## Uses the Model Is Not Designed For
+
+The model should **not** be used as the sole basis for automatically approving or denying a loan.
+
+It is also not designed to:
+
+- Replace human underwriting judgment
+- Determine loan pricing without additional business analysis
+- Make decisions using protected demographic characteristics
+- Guarantee whether an individual applicant will or will not repay
+- Be deployed without ongoing monitoring for performance, fairness, and data drift
+
+# Performance Metrics
+
+The next section evaluates the final model using AUC, precision, and recall. AUC measures the model's overall ability to rank higher-risk applicants above lower-risk applicants, while precision and recall depend on the probability threshold selected for the lending decision.
+
+The decision threshold will be selected using realistic consumer-lending business costs rather than automatically using a threshold of 0.50.
+
+# Decision Threshold Analysis
+
+## Business Cost Assumptions
+
+Choosing a classification threshold is a business decision, not only a statistical decision. In this application, the two major prediction errors have different financial consequences:
+
+- A **false positive** occurs when the model predicts repayment difficulty for an applicant who would actually repay. If that applicant is declined, Home Credit gives up the potential return from a good loan.
+- A **false negative** occurs when the model predicts successful repayment for an applicant who actually experiences repayment difficulty. If that applicant is approved, Home Credit may experience a substantial credit loss.
+
+To create realistic cost assumptions, this analysis uses published lending benchmarks.
+
+The Federal Reserve's October 2026 Consumer Credit release reports an average interest rate of **11.90% on 24-month personal loans** at commercial banks. As a simplified estimate, two years of interest at this rate represents approximately **23.8% of principal** in gross interest opportunity on a successfully repaid loan.
+
+Research summarized by the Bank for International Settlements reports recovery of approximately **28.9% for unsecured bank loans**. A 28.9% recovery rate corresponds to a loss given default of approximately **71.1% of principal**.
+
+For the threshold analysis, costs are therefore expressed as proportions of loan principal:
+
+- **Cost of rejecting a good borrower (false positive): 0.238**
+- **Cost of approving a borrower who defaults (false negative): 0.711**
+
+Expressing costs as proportions rather than currency allows the threshold analysis to focus on the relative economic consequences of the two errors.
+
+**Sources**
+
+- Federal Reserve Board. *Consumer Credit - G.19*, October 7, 2026. The August 2026 rate for 24-month personal loans was 11.90%.
+- Jacobs, M. *An Empirical Study of the Returns on Defaulted Debt and the Discount Rate for Loss-Given-Default.* Bank for International Settlements. Reported average recovery-related results for unsecured bank loans of approximately 28.9%.
+
+## Threshold Evaluation
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(xgboost)
+
+# Load prepared training data
+train <- read.csv("application_train_prepared.csv")
+
+# Predictor set used in the final modeling analysis
+model_vars <- c(
+  "EXT_SOURCE_1",
+  "EXT_SOURCE_2",
+  "EXT_SOURCE_3",
+  "AGE_YEARS",
+  "EMPLOYMENT_YEARS",
+  "CREDIT_INCOME_RATIO",
+  "ANNUITY_INCOME_RATIO",
+  "CREDIT_ANNUITY_RATIO",
+  "TOTAL_MISSING"
+)
+
+# Create modeling data
+x <- train[, model_vars]
+y <- train$TARGET
+
+# Median imputation, matching the modeling notebook
+for (v in model_vars) {
+  x[[v]][is.na(x[[v]])] <- median(x[[v]], na.rm = TRUE)
+}
+
+x_matrix <- as.matrix(x)
+
+# Create XGBoost training matrix
+dtrain <- xgb.DMatrix(
+  data = x_matrix,
+  label = y
+)
+
+# Re-create the selected final XGBoost specification
+final_model <- xgb.train(
+  data = dtrain,
+  params = list(
+    objective = "binary:logistic",
+    eval_metric = "auc",
+    max_depth = 4,
+    eta = 0.0405,
+    subsample = 0.822,
+    colsample_bytree = 0.874
+  ),
+  nrounds = 125,
+  verbose = 0
+)
+
+# Predicted probability of repayment difficulty
+pred_prob <- predict(final_model, dtrain)
+
+# Business cost assumptions
+cost_false_positive <- 0.238
+cost_false_negative <- 0.711
+
+# Evaluate thresholds from 0.01 through 0.99
+thresholds <- seq(0.01, 0.99, by = 0.01)
+
+threshold_results <- lapply(thresholds, function(t) {
+
+  pred_class <- ifelse(pred_prob >= t, 1, 0)
+
+  TP <- sum(pred_class == 1 & y == 1)
+  TN <- sum(pred_class == 0 & y == 0)
+  FP <- sum(pred_class == 1 & y == 0)
+  FN <- sum(pred_class == 0 & y == 1)
+
+  precision <- ifelse((TP + FP) == 0, NA, TP / (TP + FP))
+  recall <- ifelse((TP + FN) == 0, NA, TP / (TP + FN))
+
+  total_cost <-
+    (FP * cost_false_positive) +
+    (FN * cost_false_negative)
+
+  data.frame(
+    threshold = t,
+    TP = TP,
+    TN = TN,
+    FP = FP,
+    FN = FN,
+    precision = precision,
+    recall = recall,
+    total_cost = total_cost
+  )
+})
+
+threshold_results <- bind_rows(threshold_results)
+
+# Find threshold with lowest estimated business cost
+optimal_row <- threshold_results[
+  which.min(threshold_results$total_cost),
+]
+
+optimal_threshold <- optimal_row$threshold
+
+optimal_summary <- data.frame(
+  Metric = c(
+    "Optimal probability threshold",
+    "Precision",
+    "Recall",
+    "False positives",
+    "False negatives",
+    "Relative total cost"
+  ),
+  Value = c(
+    sprintf("%.2f", optimal_row$threshold),
+    sprintf("%.3f", optimal_row$precision),
+    sprintf("%.3f", optimal_row$recall),
+    format(optimal_row$FP, big.mark = ","),
+    format(optimal_row$FN, big.mark = ","),
+    sprintf("%.1f", optimal_row$total_cost)
+  )
+)
+
+knitr::kable(
+  optimal_summary,
+  caption = "Business-Cost Optimal Decision Threshold"
+)
+```
+
+The business-cost analysis selected a probability threshold of **0.23**. At this threshold, the model achieved a **precision of 0.340** and a **recall of 0.174**.
+
+This means that approximately 34.0% of applicants classified as higher risk actually experienced repayment difficulty, while the model identified approximately 17.4% of all applicants who experienced repayment difficulty.
+
+The selected threshold produced **8,381 false positives** and **20,507 false negatives** in the training data. Although the recall is relatively low, this threshold minimizes the estimated financial cost under the lending assumptions used in this analysis. The result illustrates why the threshold should be chosen using business consequences rather than automatically using the conventional 0.50 cutoff.
+
+## Sensitivity Analysis
+
+```{r}
+ggplot(
+  threshold_results,
+  aes(x = threshold, y = total_cost)
+) +
+  geom_line(linewidth = 1) +
+  geom_vline(
+    xintercept = optimal_threshold,
+    linetype = "dashed"
+  ) +
+  labs(
+    title = "Estimated Business Cost Across Decision Thresholds",
+    subtitle = "Dashed line identifies the minimum-cost threshold",
+    x = "Probability Threshold",
+    y = "Relative Business Cost"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+The chart shows how estimated business cost changes as the decision threshold becomes more or less conservative. A lower threshold flags more applicants as high risk, which can reduce costly false negatives but increase the number of applicants who may be unnecessarily flagged for additional review. A higher threshold creates the opposite tradeoff.
+
+In this analysis, the estimated business cost is minimized at a probability threshold of **0.23**. This threshold therefore becomes the business-based cutoff used for the remaining performance and fairness analyses.
+
+# Explainability
+
+## SHAP Analysis
+
+SHAP values are used to explain how individual features contribute to model predictions. Positive SHAP values push a prediction toward higher repayment risk, while negative SHAP values push a prediction toward lower repayment risk.
+
+To keep the analysis computationally manageable, SHAP values are calculated on a random sample of 1,000 applicants from the training data.
+
+```{r}
+set.seed(6812)
+
+# Random sample of 1,000 applicants
+shap_sample_index <- sample(
+  seq_len(nrow(x_matrix)),
+  size = 1000,
+  replace = FALSE
+)
+
+shap_matrix <- x_matrix[shap_sample_index, ]
+
+# SHAP contributions from the final XGBoost model
+shap_values <- predict(
+  final_model,
+  xgb.DMatrix(shap_matrix),
+  predcontrib = TRUE
+)
+
+# Remove the BIAS column
+shap_feature_values <- shap_values[
+  ,
+  !colnames(shap_values) %in% c("BIAS", "(Intercept)")
+]
+
+# Mean absolute SHAP value for each feature
+shap_importance <- data.frame(
+  Feature = colnames(shap_feature_values),
+  Mean_Absolute_SHAP = colMeans(abs(shap_feature_values))
+)
+
+shap_importance <- shap_importance %>%
+  arrange(desc(Mean_Absolute_SHAP))
+
+knitr::kable(
+  shap_importance,
+  digits = 4,
+  caption = "Global SHAP Feature Importance"
+)
+```
+
+The SHAP analysis shows that the strongest drivers of the model's predictions are the external credit variables, especially **EXT_SOURCE_2** and **EXT_SOURCE_3**. These features have substantially larger mean absolute SHAP values than the other predictors, indicating that external credit-risk information plays the largest role in determining an applicant's predicted repayment risk.
+
+The next most influential variables are **CREDIT_ANNUITY_RATIO**, **EXT_SOURCE_1**, and **EMPLOYMENT_YEARS**. This suggests that both repayment burden and employment history also contribute meaningfully to risk ranking.
+
+Overall, the model relies most heavily on external credit information, while affordability, employment history, age, and missing information provide additional supporting signal.
+
+## SHAP Feature Importance Plot
+
+```{r}
+ggplot(
+  shap_importance,
+  aes(
+    x = reorder(Feature, Mean_Absolute_SHAP),
+    y = Mean_Absolute_SHAP
+  )
+) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Most Influential Features in the Final Model",
+    subtitle = "Mean absolute SHAP value across 1,000 applicants",
+    x = NULL,
+    y = "Mean Absolute SHAP Value"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+This plot identifies the features that most strongly affect the model's risk rankings overall. SHAP importance does not indicate whether a feature always increases or decreases risk; instead, it measures how strongly that feature changes predictions.
+
+## Individual Applicant Explanation
+
+The following example shows how individual feature values contribute to one applicant's predicted risk.
+
+```{r}
+example_index <- 1
+
+example_shap <- data.frame(
+  Feature = colnames(shap_feature_values),
+  SHAP_Value = as.numeric(shap_feature_values[example_index, ])
+)
+
+example_shap <- example_shap %>%
+  arrange(desc(abs(SHAP_Value)))
+
+knitr::kable(
+  example_shap,
+  digits = 4,
+  caption = "SHAP Contributions for an Example Applicant"
+)
+```
+
+For this example applicant, **EXT_SOURCE_3** had the largest effect on the prediction and pushed the applicant toward a lower predicted repayment risk. **EXT_SOURCE_2** also reduced the predicted risk.
+
+In contrast, **EMPLOYMENT_YEARS** and **AGE_YEARS** pushed the prediction toward higher risk for this specific applicant. The remaining variables had smaller effects on the final score.
+
+This example demonstrates how SHAP can translate a model prediction into an understandable explanation. Rather than only providing a probability, the model can identify which factors most strongly increased or decreased the applicant's predicted repayment risk.
+
+# Adverse Action Mapping
+
+## Human-Readable Adverse Action Reasons
+
+A model may use technical variables that are meaningful to the algorithm but not understandable to a loan applicant. For deployment, those technical features should be translated into clear, human-readable explanations.
+
+The SHAP analysis showed that the most influential predictors were `EXT_SOURCE_2`, `EXT_SOURCE_3`, `CREDIT_ANNUITY_RATIO`, `EXT_SOURCE_1`, and `EMPLOYMENT_YEARS`.
+
+The table below maps these variables to more understandable business explanations.
+
+```{r}
+adverse_action_mapping <- data.frame(
+  Model_Feature = c(
+    "EXT_SOURCE_2",
+    "EXT_SOURCE_3",
+    "CREDIT_ANNUITY_RATIO",
+    "EXT_SOURCE_1",
+    "EMPLOYMENT_YEARS",
+    "ANNUITY_INCOME_RATIO",
+    "CREDIT_INCOME_RATIO",
+    "TOTAL_MISSING"
+  ),
+  Human_Readable_Reason = c(
+    "External credit information indicates elevated repayment risk",
+    "External credit information indicates elevated repayment risk",
+    "Loan amount is high relative to scheduled payments",
+    "External credit information indicates elevated repayment risk",
+    "Limited or less stable employment history",
+    "Scheduled loan payment is high relative to income",
+    "Requested credit amount is high relative to income",
+    "Application contains substantial missing financial information"
+  )
+)
+
+knitr::kable(
+  adverse_action_mapping,
+  caption = "Example Mapping from Model Features to Human-Readable Reasons"
+)
+```
+
+These explanations are intended to translate technical model inputs into language that a business user or applicant could understand. They should not be used mechanically without confirming that the direction of the feature's effect for the individual applicant actually contributed to higher predicted risk.
+
+For example, if a high `ANNUITY_INCOME_RATIO` increases an applicant's predicted risk, the explanation could be stated as **"scheduled loan payment is high relative to income."** Similarly, if employment history contributes to increased risk, an appropriate explanation may be **"limited or less stable employment history."**
+
+## Example Adverse Action Reasons for the Sample Applicant
+
+For an individual prediction, SHAP values can be used to identify which variables actually pushed that applicant toward higher predicted risk.
+
+```{r}
+example_adverse <- example_shap %>%
+  filter(SHAP_Value > 0) %>%
+  left_join(
+    adverse_action_mapping,
+    by = c("Feature" = "Model_Feature")
+  ) %>%
+  filter(!is.na(Human_Readable_Reason)) %>%
+  arrange(desc(SHAP_Value)) %>%
+  select(
+    Feature,
+    SHAP_Value,
+    Human_Readable_Reason
+  )
+
+knitr::kable(
+  example_adverse,
+  digits = 4,
+  caption = "Potential Adverse Action Reasons for the Example Applicant"
+)
+```
+
+For this applicant, only features with positive SHAP values are considered because those features pushed the model toward a higher predicted probability of repayment difficulty. The applicant's actual feature values help verify whether the human-readable reason is appropriate.
+
+For example, the applicant has approximately **1.6 years of employment history**, a **credit-to-income ratio of 4.33**, and an **annuity-to-income ratio of 0.17**. These values support explanations related to limited employment history and relatively high financial obligations compared with income.
+
+`EXT_SOURCE_1` also contributed slightly toward higher predicted risk. Because the external credit variables are aggregated risk measures, the explanation should remain general rather than inferring a specific credit-history issue that is not directly observed.
+
+In a production lending system, adverse-action explanations should still be reviewed for accuracy, consistency, legal compliance, and alignment with actual underwriting policies before being communicated to applicants.
+
+```{r}
+example_feature_values <- data.frame(
+  Feature = colnames(shap_matrix),
+  Applicant_Value = as.numeric(shap_matrix[example_index, ])
+)
+
+example_feature_values <- example_feature_values %>%
+  filter(Feature %in% example_adverse$Feature)
+
+knitr::kable(
+  example_feature_values,
+  digits = 3,
+  caption = "Feature Values for the Example Applicant"
+)
+```
+
+For the example applicant, the features that pushed the prediction toward higher repayment risk are consistent with the proposed human-readable explanations. The applicant has approximately **1.6 years of employment history**, a **credit-to-income ratio of 4.33**, and an **annuity-to-income ratio of 0.17**. These values support explanations related to employment history and the size of the applicant's financial obligations relative to income.
+
+`EXT_SOURCE_1` also contributed slightly toward higher predicted risk for this applicant. Because the external credit variables represent aggregated external risk information, the explanation should remain general rather than attempting to infer a specific credit-history problem that is not directly observed in the dataset.
+
+This example shows why adverse-action explanations should use both the direction of the SHAP contribution and the applicant's actual feature value before a reason is communicated.
+
+# Fairness Analysis
+
+## Approval Rates by Gender and Education
+
+Fairness analysis examines whether the model produces meaningfully different outcomes across demographic groups. For this model card, approval rates are compared across `CODE_GENDER` and `NAME_EDUCATION_TYPE` using the selected **0.23 probability threshold**.
+
+An applicant is treated as **approved** when the predicted probability of repayment difficulty is below 0.23 and **flagged for higher risk** when the predicted probability is 0.23 or higher.
+
+```{r}
+# Add model predictions and decision outcome to the training data
+fairness_data <- train %>%
+  mutate(
+    pred_prob = pred_prob,
+    predicted_high_risk = ifelse(pred_prob >= optimal_threshold, 1, 0),
+    approved = ifelse(predicted_high_risk == 0, 1, 0)
+  )
+```
+
+## Approval Rate by Gender
+
+```{r}
+gender_fairness <- fairness_data %>%
+  group_by(CODE_GENDER) %>%
+  summarise(
+    Applicants = n(),
+    Approved = sum(approved),
+    Approval_Rate = mean(approved),
+    Actual_Default_Rate = mean(TARGET),
+    .groups = "drop"
+  )
+
+knitr::kable(
+  gender_fairness,
+  digits = 3,
+  caption = "Approval Rates by Gender at the 0.23 Threshold"
+)
+```
+
+At the 0.23 threshold, female applicants had an approval rate of **96.5%**, compared with **94.7%** for male applicants, a difference of approximately **1.8 percentage points**. The observed repayment-difficulty rate was also different across the two groups: **7.0% for female applicants** and **10.1% for male applicants**.
+
+The lower approval rate for male applicants is therefore directionally consistent with the higher observed default rate in that group. However, this does not by itself establish that the model is fair. The difference should still be monitored because demographic disparities can arise from differences in model inputs, proxy variables, or other factors that may not be appropriate for lending decisions.
+
+The four records with missing or other gender coding are too few to support a meaningful comparison.
+
+## Approval Rate by Education
+
+```{r}
+education_fairness <- fairness_data %>%
+  group_by(NAME_EDUCATION_TYPE) %>%
+  summarise(
+    Applicants = n(),
+    Approved = sum(approved),
+    Approval_Rate = mean(approved),
+    Actual_Default_Rate = mean(TARGET),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Approval_Rate))
+
+knitr::kable(
+  education_fairness,
+  digits = 3,
+  caption = "Approval Rates by Education Level at the 0.23 Threshold"
+)
+```
+
+Approval rates also vary across education groups at the 0.23 threshold. Applicants with **higher education** had the highest approval rate at **97.3%**, followed by **secondary or secondary special education at 95.5%**, **academic degree at 95.1%**, **incomplete higher education at 94.8%**, and **lower secondary education at 94.5%**.
+
+The observed repayment-difficulty rates generally move in the opposite direction. Applicants with higher education had an observed default rate of **5.4%**, while the lower secondary group had the highest observed default rate at **10.9%**. This suggests that at least part of the difference in approval rates is associated with differences in observed repayment outcomes across education groups.
+
+The academic degree group contains only **164 applicants**, so its approval and default rates should be interpreted cautiously because the small sample can make the results unstable.
+
+## Fairness Visualization
+
+```{r}
+ggplot(
+  gender_fairness,
+  aes(x = CODE_GENDER, y = Approval_Rate)
+) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Approval Rate by Gender",
+    subtitle = "Using the 0.23 business-cost threshold",
+    x = "Gender",
+    y = "Approval Rate"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+Overall, the fairness analysis shows measurable differences in approval rates across gender and education groups, but the largest differences are relatively modest at the selected threshold and generally correspond with differences in observed repayment-difficulty rates.
+
+These results should be treated as an initial fairness diagnostic rather than proof that the model is fair. Before deployment, Home Credit should evaluate additional measures such as false-positive and false-negative rates by group, model calibration across demographic groups, and whether any predictor acts as a proxy for protected characteristics. Approval-rate disparities should also be monitored over time as applicant populations and economic conditions change.
+
+# Limitations and Risks
+
+The model provides useful repayment-risk ranking, but several limitations should be considered before deployment.
+
+## Data Limitations
+
+The model is trained primarily on application-level information from the Home Credit competition dataset. It does not include all information that may be available in a real lending environment, such as detailed transaction histories, updated bureau records, macroeconomic conditions, or post-application borrower behavior.
+
+Some predictors also contain substantial missing information. Although missing-value indicators were included in the model, missing data can still reduce the reliability and interpretability of individual predictions.
+
+## Model Limitations
+
+The final model achieved a cross-validated AUC of approximately **0.748** and a private Kaggle AUC of approximately **0.738**. These results show meaningful discrimination, but the model is not highly accurate at the individual level and should not be treated as a guarantee of repayment or default.
+
+At the selected **0.23 business-cost threshold**, recall is approximately **17.4%**, meaning that many applicants who eventually experience repayment difficulty are not identified as high risk. This is an important limitation because false negatives can still create substantial credit losses.
+
+The model was also trained and evaluated on historical data. Changes in borrower behavior, credit conditions, underwriting practices, or the broader economy could reduce performance over time.
+
+## Explainability Limitations
+
+SHAP values provide useful explanations of how features influence model predictions, but they do not establish causal relationships. A high SHAP contribution means that a feature affected the model's prediction, not that the feature caused the applicant to default.
+
+Some variables, particularly the `EXT_SOURCE` measures, are aggregated external risk scores. Because their exact construction is not available in the dataset, explanations based on these features must remain general.
+
+## Fairness and Compliance Risks
+
+The fairness analysis identified differences in approval rates across gender and education groups. Although those differences generally corresponded with differences in observed repayment-difficulty rates, this does not prove that the model is fair.
+
+Predictors may act as proxies for protected characteristics even when protected characteristics are not directly used by the model. A production deployment would therefore require deeper analysis of error rates, calibration, adverse impact, and legal compliance across demographic groups.
+
+## Operational Risks
+
+The model should not be deployed as a fully automated approval or denial system. Incorrect predictions, data-quality problems, or changes in the applicant population could negatively affect lending decisions if the model is used without human oversight.
+
+Recommended controls include:
+
+- Use the model as a decision-support and risk-ranking tool rather than an automatic decision engine.
+- Maintain human review for borderline or high-impact decisions.
+- Monitor AUC, calibration, approval rates, and error rates over time.
+- Monitor fairness and group-level outcomes.
+- Review adverse-action explanations before communicating them to applicants.
+- Retrain or recalibrate the model when performance or population characteristics materially change.
+
+Overall, the model appears suitable for controlled pilot testing, but it should not be deployed broadly without ongoing performance, fairness, compliance, and data-quality monitoring.
+
+# Deployment Recommendation
+
+The final XGBoost model shows enough predictive value to justify a controlled business pilot, but not enough to support fully automated lending decisions.
+
+The model achieved a **3-fold cross-validated AUC of 0.748** and a **private Kaggle AUC of 0.738**, indicating that its risk-ranking performance remains reasonably stable on unseen data. The business-cost analysis selected a probability threshold of **0.23**, where the model achieved **34.0% precision** and **17.4% recall** under the lending-cost assumptions used in this analysis.
+
+The recommended use is to apply the model as a **risk-ranking and decision-support layer**. Applicants with predicted risk above the selected threshold could receive additional review, documentation requests, or other underwriting attention rather than being automatically denied.
+
+A deployment pilot should operate in parallel with the existing underwriting process and measure whether model-assisted review produces better business outcomes. Key pilot metrics should include:
+
+- Credit losses and repayment-difficulty rates
+- Approval rates
+- False-positive and false-negative rates
+- Manual-review workload
+- Model AUC and calibration
+- Approval and error-rate differences across demographic groups
+- Frequency and quality of adverse-action explanations
+
+The fairness analysis identified a **1.8 percentage-point approval-rate difference between female and male applicants**, while approval rates across education groups ranged from approximately **94.5% to 97.3%**. These differences are not large enough on their own to determine that the model is unfair, but they should be monitored and investigated before broader deployment.
+
+SHAP analysis also showed that the model can provide useful feature-level explanations. External credit-risk measures were the strongest predictors, followed by affordability and employment-related variables. These explanations can support underwriting review, but they should be translated carefully because SHAP values describe model behavior rather than causal relationships.
+
+Overall, the recommendation is to **pilot the model with human oversight rather than deploy it as an automatic approval or denial system**. The pilot should validate the financial assumptions used in the threshold analysis, test whether the model creates measurable business value, and confirm that performance and fairness remain acceptable in the actual lending environment.

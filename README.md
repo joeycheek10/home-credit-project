@@ -80,3 +80,23 @@ Final model performance:
 - Kaggle private score: 0.73809
 
 The modeling notebook is available in `Modeling.qmd`.
+
+## Model Card
+
+A model card was created for the final Home Credit repayment-risk model to document model performance, intended use, explainability, fairness, decision thresholds, and deployment risks.
+
+Key model card findings:
+
+- Final model: XGBoost binary classifier
+- 3-fold cross-validated AUC: 0.748
+- Private Kaggle AUC: 0.738
+- Business-cost decision threshold: 0.23
+- Precision at selected threshold: 0.340
+- Recall at selected threshold: 0.174
+- Most influential SHAP features: EXT_SOURCE_2, EXT_SOURCE_3, CREDIT_ANNUITY_RATIO, EXT_SOURCE_1, and EMPLOYMENT_YEARS
+- Initial fairness analysis showed a 96.5% approval rate for female applicants and 94.7% for male applicants
+- Recommended deployment approach: controlled pilot with human oversight rather than fully automated approval or denial
+
+The model card also includes adverse-action mapping, fairness analysis across gender and education groups, limitations and risks, and a business-focused deployment recommendation.
+
+Notebook: `model_card.qmd`
