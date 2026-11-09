@@ -1,63 +1,70 @@
-# home-credit-project
-Home Credit Default Risk Analysis – MSBA Practice Project
-
 # Home Credit Default Risk Analysis
 
 ## Project Overview
 
-This repository contains my work for the IS 6812 MSBA Practice Project course. The project focuses on analyzing Home Credit data to better understand credit default risk and explore how business analytics can support lending decisions.
+This project analyzes the **Home Credit Default Risk** dataset to predict which loan applicants are more likely to experience repayment difficulty.
 
-## Project Goals
+The business challenge is to improve credit-risk decisions without unnecessarily rejecting applicants who may be able to repay successfully. I developed an end-to-end analytics workflow that includes exploratory analysis, feature engineering, predictive modeling, model explainability, fairness analysis, and deployment recommendations.
 
-- Explore and understand the Home Credit dataset.
-- Identify factors that may be associated with credit default risk.
-- Apply data analysis and modeling techniques learned throughout the course.
-- Communicate findings and business recommendations clearly.
+The final recommendation is to use the model as a **risk-ranking and decision-support tool**, rather than as a fully automated approval or denial system.
 
-## Project Status
+---
 
-This project is currently in progress. I will update this repository throughout the semester as I complete additional analyses and assignments.
+## Key Results
 
-## Data Preparation
+The final **XGBoost classification model** provided the strongest predictive performance among the models evaluated.
 
-The `data_preparation.R` script converts the exploratory data analysis findings into reusable preparation steps for both the training and test application datasets.
+| Metric | Result |
+|---|---:|
+| Training AUC | 0.751 |
+| 3-Fold Cross-Validated AUC | **0.748** |
+| Kaggle Public AUC | 0.746 |
+| Kaggle Private AUC | 0.738 |
+| Business-Cost Decision Threshold | **0.23** |
+| Precision at Selected Threshold | 0.340 |
+| Recall at Selected Threshold | 0.174 |
 
-The script:
+The similarity between training, cross-validation, and Kaggle performance suggests that the model's risk-ranking ability generalizes reasonably well to unseen data.
 
-- Converts `DAYS_BIRTH` into `AGE_YEARS`.
-- Creates `AGE_GROUP` from `AGE_YEARS` using the same age ranges examined in the EDA.
-- Replaces the special `DAYS_EMPLOYED = 365243` value with missing data and creates `EMPLOYMENT_YEARS`.
-- Creates financial ratios:
-  - `CREDIT_INCOME_RATIO`
-  - `ANNUITY_INCOME_RATIO`
-  - `CREDIT_ANNUITY_RATIO`
-- Creates missing-value indicators for `EXT_SOURCE_1`, `EXT_SOURCE_2`, and `EXT_SOURCE_3`.
-- Creates `TOTAL_MISSING` to summarize missing information for each applicant.
-- Applies the same preparation functions to both the training and test datasets.
-- Checks that the prepared training and test datasets contain identical predictor columns, except for `TARGET`, which is only present in the training data.
-- Confirms that each `SK_ID_CURR` remains unique after preparation.
-- Confirms that the number of rows remains unchanged after preparation.
+---
 
-These transformations reflect findings from the EDA. Age and employment history showed differences in default risk, financial relationships were more useful when expressed relative to income or payments, and missingness was associated with differences in default rates. The age-group feature also preserves the age ranges used during the exploratory analysis.
+## Business Problem
 
-No imputation means, medians, or binning thresholds are learned from the training data in the current preparation script, so there are no train-derived parameters that need to be reused on the test set.
+Home Credit serves borrowers who may have limited traditional credit histories. This creates a tradeoff between:
 
-### Running the Script
+- reducing losses from applicants who may experience repayment difficulty, and
+- maintaining access to credit for applicants who are likely to repay successfully.
 
-Run:
+Approximately **8.1% of applicants in the training data experienced repayment difficulty**, making the target highly imbalanced.
 
-```r
-source("data_preparation.R")
+Because of this imbalance, overall accuracy alone would be misleading. The analysis therefore emphasizes **AUC and business-cost tradeoffs** when evaluating model performance.
 
-## Author
+---
 
-Joey Cheek
+## Data Preparation and Feature Engineering
+
+The project includes a reusable preparation script that applies the same transformations to both training and test datasets.
+
+Key engineered features include:
+
+- Applicant age in years
+- Employment history in years
+- Age groups
+- Credit-to-income ratio
+- Annuity-to-income ratio
+- Credit-to-annuity ratio
+- Missing-value indicators for external credit variables
+- Total missing-value count
+
+The preparation process also converts the special `DAYS_EMPLOYED = 365243` value to missing data and validates that training and test datasets contain consistent predictor columns.
+
+**Script:** [`data_preparation.R`](data_preparation.R)
+
+---
 
 ## Modeling
 
-The modeling phase compared several classification approaches for predicting Home Credit repayment difficulty.
-
-Models evaluated included:
+Several classification approaches were evaluated:
 
 - Majority-class benchmark
 - Logistic regression
@@ -65,38 +72,163 @@ Models evaluated included:
 - XGBoost
 - Class-weighted XGBoost
 
-Model performance was compared using 3-fold cross-validated AUC because the target variable is highly imbalanced.
+Model selection focused on **3-fold cross-validated AUC** because of the highly imbalanced outcome.
 
-The strongest candidate was XGBoost, with a mean cross-validated AUC of approximately 0.748. Class weighting did not improve performance, so the unweighted XGBoost model was selected for tuning.
+| Model | Cross-Validated AUC |
+|---|---:|
+| Majority-Class Benchmark | 0.500 |
+| Logistic Regression | 0.724 |
+| Random Forest | 0.723 |
+| XGBoost | **0.748** |
+| Class-Weighted XGBoost | 0.747 |
 
-Hyperparameter tuning was performed using a randomized search on a 5,000-row sample with 3-fold cross-validation. The tuned model was then trained on the full training dataset.
+XGBoost produced the strongest performance. Class weighting did not improve discrimination, so the standard XGBoost model was selected.
 
-Final model performance:
+Hyperparameters were tuned using randomized search on a 5,000-row sample with 3-fold cross-validation before training the final model on the full dataset.
 
-- Training AUC: 0.751
-- 3-fold cross-validated AUC: 0.748
-- Training runtime: approximately 1.30 seconds
-- Kaggle public score: 0.74557
-- Kaggle private score: 0.73809
+**Notebook:** [`Modeling.qmd`](Modeling.qmd)
 
-The modeling notebook is available in `Modeling.qmd`.
+---
 
-## Model Card
+## Model Explainability
 
-A model card was created for the final Home Credit repayment-risk model to document model performance, intended use, explainability, fairness, decision thresholds, and deployment risks.
+SHAP analysis was used to identify which predictors had the greatest influence on the final model.
 
-Key model card findings:
+The most influential features were:
 
-- Final model: XGBoost binary classifier
-- 3-fold cross-validated AUC: 0.748
-- Private Kaggle AUC: 0.738
-- Business-cost decision threshold: 0.23
-- Precision at selected threshold: 0.340
-- Recall at selected threshold: 0.174
-- Most influential SHAP features: EXT_SOURCE_2, EXT_SOURCE_3, CREDIT_ANNUITY_RATIO, EXT_SOURCE_1, and EMPLOYMENT_YEARS
-- Initial fairness analysis showed a 96.5% approval rate for female applicants and 94.7% for male applicants
-- Recommended deployment approach: controlled pilot with human oversight rather than fully automated approval or denial
+1. `EXT_SOURCE_2`
+2. `EXT_SOURCE_3`
+3. `CREDIT_ANNUITY_RATIO`
+4. `EXT_SOURCE_1`
+5. `EMPLOYMENT_YEARS`
 
-The model card also includes adverse-action mapping, fairness analysis across gender and education groups, limitations and risks, and a business-focused deployment recommendation.
+The results show that external credit-risk information is the strongest source of predictive signal, while affordability and employment history provide additional information.
 
-Notebook: `model_card.qmd`
+SHAP was also used to translate individual predictions into understandable explanations that could support underwriting review and adverse-action communication.
+
+---
+
+## Decision Threshold and Business Use
+
+Instead of automatically using a 0.50 classification cutoff, I evaluated thresholds using estimated consumer-lending business costs.
+
+The resulting **business-cost threshold was 0.23**.
+
+At this threshold:
+
+- Precision = **34.0%**
+- Recall = **17.4%**
+
+The model is therefore better suited for **risk ranking and prioritizing enhanced review** than for automatically rejecting applicants.
+
+A recommended workflow would use higher model scores to trigger additional underwriting attention while keeping human judgment and existing lending policies in the decision process.
+
+---
+
+## Fairness Analysis
+
+Approval outcomes were evaluated across gender and education groups at the selected threshold.
+
+### Gender
+
+- Female approval rate: **96.5%**
+- Male approval rate: **94.7%**
+- Difference: approximately **1.8 percentage points**
+
+### Education
+
+Approval rates ranged from approximately **94.5% to 97.3%** across education groups.
+
+These results are an initial fairness diagnostic rather than proof that the model is fair. A production system would require additional monitoring of error rates, calibration, proxy effects, and demographic outcomes.
+
+---
+
+## Model Card and Deployment Recommendation
+
+A full model card documents:
+
+- Intended use
+- Predictive performance
+- Decision-threshold analysis
+- SHAP explainability
+- Adverse-action mapping
+- Fairness analysis
+- Limitations and risks
+- Deployment recommendations
+
+The final recommendation is to **pilot the model with human oversight** before broader deployment.
+
+The pilot should measure whether model-assisted underwriting:
+
+- reduces credit losses,
+- improves review efficiency,
+- maintains acceptable approval outcomes,
+- remains accurate across applicant groups, and
+- provides understandable reasons for higher-risk predictions.
+
+**Model Card:** [`model_card.qmd`](model_card.qmd)
+
+---
+
+## Exploratory Data Analysis
+
+The exploratory analysis was used to understand repayment difficulty, missing data, applicant characteristics, and financial relationships before modeling.
+
+The EDA informed several of the engineered variables later used during model development.
+
+**Notebook:** [`eda.qmd`](eda.qmd)
+
+---
+
+## Repository Contents
+
+| File | Purpose |
+|---|---|
+| `eda.qmd` | Exploratory data analysis |
+| `data_preparation.R` | Reusable feature engineering and preparation |
+| `Modeling.qmd` | Model comparison, tuning, validation, and Kaggle results |
+| `model_card.qmd` | Explainability, threshold analysis, fairness, risks, and deployment guidance |
+| `HomeCredit_columns_description.csv` | Dataset variable descriptions |
+| `.gitignore` | Prevents large datasets and generated artifacts from being committed |
+
+Large source datasets, prepared datasets, generated HTML files, and submission files are maintained locally rather than committed to the repository.
+
+---
+
+## Skills Demonstrated
+
+This project demonstrates experience with:
+
+- R
+- Data cleaning and feature engineering
+- Exploratory data analysis
+- Logistic regression
+- Random forest
+- XGBoost
+- Cross-validation
+- Hyperparameter tuning
+- Classification under class imbalance
+- ROC AUC evaluation
+- SHAP explainability
+- Fairness analysis
+- Business-oriented decision thresholds
+- Git and GitHub
+- Quarto
+- Translating technical results into business recommendations
+
+---
+
+## Business Takeaway
+
+The strongest model improved risk discrimination from a **0.50 benchmark AUC to approximately 0.748 cross-validated AUC** while maintaining similar performance on unseen Kaggle data.
+
+The most appropriate business use is not broader rejection of applicants. Instead, the model can help lenders **rank risk more effectively and focus underwriting attention where it is most valuable**.
+
+That combination of predictive performance, explainability, fairness monitoring, and human oversight provides a practical path toward responsible model deployment.
+
+---
+
+## Author
+
+**Joey Cheek**  
+MSBA — IS 6812 Practice Project
