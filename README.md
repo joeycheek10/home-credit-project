@@ -218,6 +218,30 @@ This project demonstrates experience with:
 
 ---
 
+## Challenges Encountered
+
+One of the main challenges in this project was working with a highly imbalanced outcome, since only about 8.1% of applicants experienced repayment difficulty. This made traditional accuracy a poor measure of model quality and required greater emphasis on AUC, precision, recall, and business-cost tradeoffs.
+
+Missing data was another important challenge, particularly within the external credit variables. I addressed this by creating missing-value indicators and preserving missingness as potential predictive information rather than simply treating it as a data-cleaning problem.
+
+Model selection also required balancing predictive performance with practical considerations such as explainability and deployment risk. The strongest model was not treated as an automatic decision system; instead, the analysis incorporated SHAP explanations, fairness comparisons, and a business-cost decision threshold to evaluate how the model could be used responsibly.
+
+## What I Learned
+
+This project strengthened my ability to move beyond simply building a predictive model and think about how analytics supports an actual business decision.
+
+I learned how to:
+
+- evaluate classification models when the outcome is highly imbalanced,
+- use cross-validation and unseen-data performance to assess generalization,
+- translate model predictions into business-oriented decision thresholds,
+- use SHAP values to explain both overall model behavior and individual predictions,
+- evaluate differences in model outcomes across demographic groups,
+- document model limitations and deployment risks, and
+- communicate technical results in a way that business stakeholders can understand and act on.
+
+The biggest takeaway was that a model with good predictive performance is only one part of a useful analytics solution. The model also needs to be explainable, monitored, aligned with business costs, and used within an appropriate decision process.
+
 ## Business Takeaway
 
 The strongest model improved risk discrimination from a **0.50 benchmark AUC to approximately 0.748 cross-validated AUC** while maintaining similar performance on unseen Kaggle data.
